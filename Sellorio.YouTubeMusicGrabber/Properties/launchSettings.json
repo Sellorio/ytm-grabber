@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Sellorio.YouTubeMusicGrabber": {
+        "commandName": "Project",
+        "commandLineArgs": "grab-single https://www.youtube.com/watch?v=G5LaznEd4gU -o test.mp3"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+.vs/
+bin/
+obj/
+
+ffmpeg.exe
+ffprobe.exe
+yt-dlp.exe
