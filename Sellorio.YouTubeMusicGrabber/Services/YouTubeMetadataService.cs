@@ -15,7 +15,7 @@ internal class YouTubeMetadataService : IYouTubeMetadataService
         var startInfo =
             new ProcessStartInfo(
                 Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "yt-dlp.exe"),
-                $"--print-json --skip-download \"https://music.youtube.com/watch?v={youTubeId}\"")
+                $"--cookies cookies.txt --print-json --skip-download \"https://music.youtube.com/watch?v={youTubeId}\"")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
