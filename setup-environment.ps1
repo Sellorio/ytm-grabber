@@ -6,7 +6,7 @@ Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/downloa
 
 # Download FFmpeg static build (Windows 64-bit)
 $ffmpegZip = "$PSScriptRoot\ffmpeg_temp.zip"
-Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile $ffmpegZip
+Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip" -OutFile $ffmpegZip
 
 # Extract ffmpeg.exe and ffprobe.exe only
 $extractPath = "$PSScriptRoot\ffmpeg_temp"

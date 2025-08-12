@@ -202,7 +202,7 @@ internal class SyncService(
 
         return
             Path.Combine(
-                safeAlbumName + " (" + metadata.ReleaseYear + ")",
+                safeAlbumName + " (" + release.ReleaseYear + ")",
                 track.Number + " - " + safeTitle + ".mp3");
     }
 

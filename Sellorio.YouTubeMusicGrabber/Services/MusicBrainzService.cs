@@ -62,7 +62,7 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
 
         Recording recording = null;
 
-        var query = BuildQuery(album, artist, title, useSpecificFields: false /* using fields causes issues with special characters */);
+        var query = BuildQuery(album, artist, title);
 
         for (var offset = 0; offset < MaxPageSize * MaxPagesToSearch; offset += MaxPageSize)
         {
@@ -88,9 +88,13 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
         return null;
     }
 
-    private static string BuildQuery(string album, string artist, string title, bool useSpecificFields)
+    private static string BuildQuery(string album, string artist, string title)
     {
-        if (useSpecificFields)
+        if (album.Any(x => x > 255) || artist.Any(x => x > 255) || title.Any(x => x > 255))
+        {
+            return string.Join(' ', $"{EscapeMusicBrainzQueryValue(album)} {EscapeMusicBrainzQueryValue(artist)} {EscapeMusicBrainzQueryValue(title)}".Split(' ').Distinct());
+        }
+        else
         {
             var searchClauses = new Dictionary<string, string>
             {
@@ -103,12 +107,14 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
                 searchClauses.Add("artist", artist);
             }
 
-            var query = string.Join(" AND ", searchClauses.Select(x => $"{x.Key}:{EscapeMusicBrainzQueryValue(x.Value)}"));
+            var query =
+                string.Join(
+                    " AND ",
+                    searchClauses.Select(x =>
+                        x.Value.Contains(' ')
+                            ? $"({x.Key}:\"{EscapeMusicBrainzQueryValue(x.Value)}\" OR {x.Key}:\"{EscapeMusicBrainzQueryValue(x.Value.Replace(" ", ""))}\")"
+                            : $"{x.Key}:\"{EscapeMusicBrainzQueryValue(x.Value)}\""));
             return query;
-        }
-        else
-        {
-            return $"{EscapeMusicBrainzQueryValue(album)} {EscapeMusicBrainzQueryValue(artist)} {EscapeMusicBrainzQueryValue(title)}";
         }
     }
 
@@ -131,7 +137,8 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
                 continue;
             }
 
-            if (recording.Releases.All(x => CompareHelper.ToSearchNormalisedTitle(x.Title) != album))
+            if (recording.Releases == null ||
+                recording.Releases.All(x => CompareHelper.ToSearchNormalisedTitle(x.Title) != album))
             {
                 continue;
             }

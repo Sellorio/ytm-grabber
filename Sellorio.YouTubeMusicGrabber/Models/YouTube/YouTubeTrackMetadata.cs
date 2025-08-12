@@ -21,9 +21,6 @@ internal class YouTubeTrackMetadata
     [JsonPropertyName("artists")]
     public string[] Artists { get; set; }
 
-    [JsonPropertyName("release_year")]
-    public int? ReleaseYear { get; set; }
-
     [JsonPropertyName("categories")]
     public string[] Categories { get; set; }
 

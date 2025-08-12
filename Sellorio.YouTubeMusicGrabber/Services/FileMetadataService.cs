@@ -29,7 +29,7 @@ internal class FileMetadataService(HttpClient httpClient) : IFileMetadataService
         tag.Title = musicBrainzMetadata.Track.Title;
         tag.Album = musicBrainzMetadata.Release.Title;
         tag.AlbumArtists = youTubeMetadata.Artists!.First().Split(',');
-        tag.Year = (uint)youTubeMetadata.ReleaseYear;
+        tag.Year = (uint)musicBrainzMetadata.Release.ReleaseYear;
         tag.Genres = youTubeMetadata.Categories;
         _ = uint.TryParse(musicBrainzMetadata.Track.Number, out var trackNumber);
         tag.Track = trackNumber;

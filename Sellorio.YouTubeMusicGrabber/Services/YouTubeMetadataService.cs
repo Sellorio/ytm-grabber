@@ -1,9 +1,9 @@
 ﻿using System;
-using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 
 namespace Sellorio.YouTubeMusicGrabber.Services;
@@ -12,7 +12,8 @@ internal partial class YouTubeMetadataService(HttpClient httpClient) : IYouTubeM
 {
     public async Task<YouTubeTrackAdditionalInfo> GetTrackAdditionalInfoAsync(string youTubeId)
     {
-        var browseId = await GetBrowseIdAsync(youTubeId);
+        var latestYouTubeId = await GetLatestYouTubeIdAsync(youTubeId);
+        var browseId = await GetBrowseIdAsync(latestYouTubeId);
         var albumId = await GetAlbumIdAsync(browseId);
 
         return new YouTubeTrackAdditionalInfo
@@ -21,16 +22,21 @@ internal partial class YouTubeMetadataService(HttpClient httpClient) : IYouTubeM
         };
     }
 
+    private async Task<string> GetLatestYouTubeIdAsync(string youTubeId)
+    {
+        var response = await httpClient.GetAsync("https://music.youtube.com/watch?v=" + youTubeId);
+        response.EnsureSuccessStatusCode();
+        var responseText = await response.Content.ReadAsStringAsync();
+        var videoId = Regex.Match(responseText, @$"\\""videoId\\"":\\""({Constants.YouTubeIdRegex})\\""").Groups[1].Value;
+        return videoId;
+    }
+
     private async Task<string> GetBrowseIdAsync(string youTubeId)
     {
-        var requestMessage = new HttpRequestMessage
-        {
-            RequestUri = new Uri("https://music.youtube.com/youtubei/v1/next?prettyPrint=false"),
-            Method = HttpMethod.Post,
-            Content = new StringContent($"{{\"enablePersistentPlaylistPanel\":true,\"tunerSettingValue\":\"AUTOMIX_SETTING_NORMAL\",\"videoId\":\"{youTubeId}\",\"params\":\"8gEAmgMDCNgE\",\"playerParams\":\"igMDCNgE\",\"isAudioOnly\":true,\"responsiveSignals\":{{\"videoInteraction\":[]}},\"queueContextParams\":\"\",\"context\":{{\"client\":{{\"hl\":\"en\",\"gl\":\"AU\",\"remoteHost\":\"180.87.29.100\",\"deviceMake\":\"\",\"deviceModel\":\"\",\"visitorData\":\"CgthWGljNm5RbzAyVSihjerEBjIKCgJBVRIEGgAgMA%3D%3D\",\"userAgent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0,gzip(gfe)\",\"clientName\":\"WEB_REMIX\",\"clientVersion\":\"1.20250805.07.00\",\"osName\":\"Windows\",\"osVersion\":\"10.0\",\"originalUrl\":\"https://music.youtube.com/watch?v=LySs40nMSn4\",\"platform\":\"DESKTOP\",\"clientFormFactor\":\"UNKNOWN_FORM_FACTOR\",\"configInfo\":{{\"appInstallData\":\"CKGN6sQGEOnczxwQ8NTPHBDM364FELfq_hIQ4riwBRC9tq4FELCGzxwQ8MzPHBCYuc8cEPGcsAUQxcPPHBD8ss4cEKqdzxwQ3rzOHBDiys8cEPqrzxwQ_dvPHBCmoYATEO7VzxwQlP6wBRCZmLEFEPWegBMQvdDPHBCKgoATENr3zhwQrtbPHBCZjbEFEL2ZsAUQudnOHBDT4a8FEIiHsAUQ5snPHBCHrM4cEMbLzxwQgc3OHBC85rAFEMn3rwUQvYqwBRC45M4cEPDizhwQndCwBRDOrM8cELvZzhwQibDOHBCY8s4cEParsAUQjODPHBCRrM8cKixDQU1TSFJVZW9MMndETkhrQnNlVUVxTEE2Z3ZmeFFDcXlBVXlvS3dFQXgwSDAA\",\"coldConfigData\":null,\"coldHashData\":null,\"hotHashData\":null}},\"userInterfaceTheme\":\"USER_INTERFACE_THEME_DARK\",\"timeZone\":\"Australia/Sydney\",\"browserName\":\"Firefox\",\"browserVersion\":\"141.0\",\"acceptHeader\":\"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\",\"deviceExperimentId\":\"ChxOelV6TnpRNE5EazFNelk0TkRFd056YzNNZz09EKGN6sQGGKGN6sQG\",\"rolloutToken\":\"CKGIwP-8-uDz0gEQlrOq2amGjAMYneSa6faDjwM%3D\",\"screenWidthPoints\":1920,\"screenHeightPoints\":1067,\"screenPixelDensity\":1,\"screenDensityFloat\":1,\"utcOffsetMinutes\":600,\"musicAppInfo\":{{\"webDisplayMode\":\"WEB_DISPLAY_MODE_BROWSER\",\"storeDigitalGoodsApiSupportStatus\":{{\"playStoreDigitalGoodsApiSupportStatus\":\"DIGITAL_GOODS_API_SUPPORT_STATUS_UNSUPPORTED\"}}}}}},\"user\":{{\"lockedSafetyMode\":false}},\"request\":{{\"useSsl\":true,\"internalExperimentFlags\":[],\"consistencyTokenJars\":[]}},\"clickTracking\":{{\"clickTrackingParams\":\"IhMIxuyyhv6DjwMVVJ7YBR1oHxNGMghleHRlcm5hbA==\"}},\"adSignalsInfo\":{{\"params\":[{{\"key\":\"dt\",\"value\":\"1754957473842\"}},{{\"key\":\"flash\",\"value\":\"0\"}},{{\"key\":\"frm\",\"value\":\"0\"}},{{\"key\":\"u_tz\",\"value\":\"600\"}},{{\"key\":\"u_his\",\"value\":\"2\"}},{{\"key\":\"u_h\",\"value\":\"1200\"}},{{\"key\":\"u_w\",\"value\":\"1920\"}},{{\"key\":\"u_ah\",\"value\":\"1152\"}},{{\"key\":\"u_aw\",\"value\":\"1920\"}},{{\"key\":\"u_cd\",\"value\":\"24\"}},{{\"key\":\"bc\",\"value\":\"31\"}},{{\"key\":\"bih\",\"value\":\"1067\"}},{{\"key\":\"biw\",\"value\":\"1920\"}},{{\"key\":\"brdim\",\"value\":\"-8,-8,-8,-8,1920,0,1936,1168,1920,1067\"}},{{\"key\":\"vis\",\"value\":\"1\"}},{{\"key\":\"wgl\",\"value\":\"true\"}},{{\"key\":\"ca_type\",\"value\":\"image\"}}]}}}}}}")
-        };
-
-        var response = await httpClient.SendAsync(requestMessage);
+        var response =
+            await httpClient.PostAsync(
+                "https://music.youtube.com/youtubei/v1/next?prettyPrint=false",
+                new StringContent($"{{\"enablePersistentPlaylistPanel\":true,\"tunerSettingValue\":\"AUTOMIX_SETTING_NORMAL\",\"videoId\":\"{youTubeId}\",\"params\":\"8gEAmgMDCNgE\",\"playerParams\":\"igMDCNgE\",\"isAudioOnly\":true,\"responsiveSignals\":{{\"videoInteraction\":[]}},\"queueContextParams\":\"\",\"context\":{{\"client\":{{\"hl\":\"en\",\"gl\":\"AU\",\"remoteHost\":\"180.87.29.100\",\"deviceMake\":\"\",\"deviceModel\":\"\",\"visitorData\":\"CgthWGljNm5RbzAyVSihjerEBjIKCgJBVRIEGgAgMA%3D%3D\",\"userAgent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0,gzip(gfe)\",\"clientName\":\"WEB_REMIX\",\"clientVersion\":\"1.20250805.07.00\",\"osName\":\"Windows\",\"osVersion\":\"10.0\",\"originalUrl\":\"https://music.youtube.com/watch?v=LySs40nMSn4\",\"platform\":\"DESKTOP\",\"clientFormFactor\":\"UNKNOWN_FORM_FACTOR\",\"configInfo\":{{\"appInstallData\":\"CKGN6sQGEOnczxwQ8NTPHBDM364FELfq_hIQ4riwBRC9tq4FELCGzxwQ8MzPHBCYuc8cEPGcsAUQxcPPHBD8ss4cEKqdzxwQ3rzOHBDiys8cEPqrzxwQ_dvPHBCmoYATEO7VzxwQlP6wBRCZmLEFEPWegBMQvdDPHBCKgoATENr3zhwQrtbPHBCZjbEFEL2ZsAUQudnOHBDT4a8FEIiHsAUQ5snPHBCHrM4cEMbLzxwQgc3OHBC85rAFEMn3rwUQvYqwBRC45M4cEPDizhwQndCwBRDOrM8cELvZzhwQibDOHBCY8s4cEParsAUQjODPHBCRrM8cKixDQU1TSFJVZW9MMndETkhrQnNlVUVxTEE2Z3ZmeFFDcXlBVXlvS3dFQXgwSDAA\",\"coldConfigData\":null,\"coldHashData\":null,\"hotHashData\":null}},\"userInterfaceTheme\":\"USER_INTERFACE_THEME_DARK\",\"timeZone\":\"Australia/Sydney\",\"browserName\":\"Firefox\",\"browserVersion\":\"141.0\",\"acceptHeader\":\"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\",\"deviceExperimentId\":\"ChxOelV6TnpRNE5EazFNelk0TkRFd056YzNNZz09EKGN6sQGGKGN6sQG\",\"rolloutToken\":\"CKGIwP-8-uDz0gEQlrOq2amGjAMYneSa6faDjwM%3D\",\"screenWidthPoints\":1920,\"screenHeightPoints\":1067,\"screenPixelDensity\":1,\"screenDensityFloat\":1,\"utcOffsetMinutes\":600,\"musicAppInfo\":{{\"webDisplayMode\":\"WEB_DISPLAY_MODE_BROWSER\",\"storeDigitalGoodsApiSupportStatus\":{{\"playStoreDigitalGoodsApiSupportStatus\":\"DIGITAL_GOODS_API_SUPPORT_STATUS_UNSUPPORTED\"}}}}}},\"user\":{{\"lockedSafetyMode\":false}},\"request\":{{\"useSsl\":true,\"internalExperimentFlags\":[],\"consistencyTokenJars\":[]}},\"clickTracking\":{{\"clickTrackingParams\":\"IhMIxuyyhv6DjwMVVJ7YBR1oHxNGMghleHRlcm5hbA==\"}},\"adSignalsInfo\":{{\"params\":[{{\"key\":\"dt\",\"value\":\"1754957473842\"}},{{\"key\":\"flash\",\"value\":\"0\"}},{{\"key\":\"frm\",\"value\":\"0\"}},{{\"key\":\"u_tz\",\"value\":\"600\"}},{{\"key\":\"u_his\",\"value\":\"2\"}},{{\"key\":\"u_h\",\"value\":\"1200\"}},{{\"key\":\"u_w\",\"value\":\"1920\"}},{{\"key\":\"u_ah\",\"value\":\"1152\"}},{{\"key\":\"u_aw\",\"value\":\"1920\"}},{{\"key\":\"u_cd\",\"value\":\"24\"}},{{\"key\":\"bc\",\"value\":\"31\"}},{{\"key\":\"bih\",\"value\":\"1067\"}},{{\"key\":\"biw\",\"value\":\"1920\"}},{{\"key\":\"brdim\",\"value\":\"-8,-8,-8,-8,1920,0,1936,1168,1920,1067\"}},{{\"key\":\"vis\",\"value\":\"1\"}},{{\"key\":\"wgl\",\"value\":\"true\"}},{{\"key\":\"ca_type\",\"value\":\"image\"}}]}}}}}}"));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -80,7 +86,7 @@ internal partial class YouTubeMetadataService(HttpClient httpClient) : IYouTubeM
 
         var responseText = await response.Content.ReadAsStringAsync();
 
-        var albumIdMatch = Regex.Match(responseText, @"\\x22playlistId\\x22:\\x22(OLAK5uy_[a-zA-Z0-9_]+)\\x22");
+        var albumIdMatch = Regex.Match(responseText, @$"\\x22playlistId\\x22:\\x22(OLAK5uy_{Constants.YouTubeIdRegex})\\x22");
 
         if (!albumIdMatch.Success)
         {
