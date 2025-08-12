@@ -3,5 +3,4 @@
 internal class ArtistAlias
 {
     public string Name { get; set; }
-    public bool Primary { get; set; }
 }

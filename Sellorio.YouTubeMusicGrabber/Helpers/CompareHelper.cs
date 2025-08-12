@@ -8,7 +8,25 @@ internal static class CompareHelper
 {
     public static string ToSearchNormalisedTitle(string text)
     {
-        return text.Replace(" ", "");
+        var result = new StringBuilder(text.Length);
+
+        foreach (var c in text)
+        {
+            if (c == '’')
+            {
+                result.Append('\'');
+            }
+            else if (char.IsPunctuation(c) && c is not '(' and not ')')
+            {
+                result.Append(c);
+            }
+            else if (char.IsLetterOrDigit(c))
+            {
+                result.Append(char.ToLowerInvariant(c));
+            }
+        }
+
+        return result.ToString();
     }
 
     public static string ToSearchNormalisedName(string text)

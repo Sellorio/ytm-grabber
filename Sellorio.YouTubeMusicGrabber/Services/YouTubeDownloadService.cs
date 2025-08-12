@@ -7,33 +7,15 @@ using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 
 namespace Sellorio.YouTubeMusicGrabber.Services;
 
-internal class YouTubeDownloadService : IYouTubeDownloadService
+internal class YouTubeDownloadService(IYouTubeApiService youTubeApiService) : IYouTubeDownloadService
 {
-    public async Task DownloadAsMp3Async(YouTubeMetadata metadata, string outputFilename, int outputBitrateKbps)
+    public async Task DownloadAsMp3Async(YouTubeTrackMetadata metadata, string outputFilename, int outputBitrateKbps)
     {
         var downloadFilenameWithoutExtension = Path.GetFileNameWithoutExtension(metadata.Filename);
 
-        var startInfo =
-            new ProcessStartInfo(
-                Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "yt-dlp.exe"),
-                $"--cookies cookies.txt \"https://music.youtube.com/watch?v={metadata.Id}\"")
-            {
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-        var process = new Process { StartInfo = startInfo };
-        process.Start();
-
         try
         {
-            await process!.WaitForExitAsync();
-
-            if (process.ExitCode != 0)
-            {
-                throw new InvalidOperationException(await process.StandardError.ReadToEndAsync());
-            }
+            await youTubeApiService.DownloadAsync(metadata.Id);
 
             if (File.Exists(downloadFilenameWithoutExtension + ".mp4"))
             {
@@ -59,14 +41,13 @@ internal class YouTubeDownloadService : IYouTubeDownloadService
         }
     }
 
-    private async Task ConvertToMp3Async(string source, string destination, int outputBitrateKbps)
+    private static async Task ConvertToMp3Async(string source, string destination, int outputBitrateKbps)
     {
         var startInfo =
             new ProcessStartInfo(
                 Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "ffmpeg.exe"),
                 $"-y -i \"{source}\" -id3v2_version 3 -write_id3v1 1 -ab {outputBitrateKbps}k \"{destination}\"")
             {
-                RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -75,13 +56,13 @@ internal class YouTubeDownloadService : IYouTubeDownloadService
         var process = Process.Start(startInfo);
 
         // make sure the output buffer doesn't fill and block the process
-        _ = process.StandardOutput.ReadToEndAsync();
+        var errorOutputTask = process.StandardError.ReadToEndAsync();
 
         await process.WaitForExitAsync();
 
         if (process.ExitCode != 0)
         {
-            throw new InvalidOperationException(await process.StandardError.ReadToEndAsync());
+            throw new InvalidOperationException(await errorOutputTask);
         }
     }
 }

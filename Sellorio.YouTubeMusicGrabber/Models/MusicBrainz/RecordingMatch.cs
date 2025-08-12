@@ -6,4 +6,5 @@ internal class RecordingMatch
     public Release Release { get; set; }
     public ReleaseGroup ReleaseGroup { get; set; }
     public Medium Medium { get; set; }
+    public Track Track { get; set; }
 }

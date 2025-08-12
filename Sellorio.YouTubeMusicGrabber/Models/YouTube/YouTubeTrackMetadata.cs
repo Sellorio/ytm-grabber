@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Sellorio.YouTubeMusicGrabber.Models.YouTube;
 
-internal class YouTubeMetadata
+internal class YouTubeTrackMetadata
 {
     [JsonPropertyName("id")]
     public string Id { get; set; }
@@ -22,7 +22,7 @@ internal class YouTubeMetadata
     public string[] Artists { get; set; }
 
     [JsonPropertyName("release_year")]
-    public int ReleaseYear { get; set; }
+    public int? ReleaseYear { get; set; }
 
     [JsonPropertyName("categories")]
     public string[] Categories { get; set; }

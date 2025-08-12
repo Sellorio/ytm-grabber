@@ -2,5 +2,6 @@
 
 internal interface IYouTubeUriService
 {
-    string ParseVideoId(string uri);
+    bool TryParseAlbumId(string uri, out string id);
+    bool TryParseTrackId(string uri, out string id);
 }

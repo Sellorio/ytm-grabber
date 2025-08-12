@@ -1,8 +1,6 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.MusicBrainz;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 using TagLib;
@@ -11,12 +9,8 @@ namespace Sellorio.YouTubeMusicGrabber.Services;
 
 internal class FileMetadataService(HttpClient httpClient) : IFileMetadataService
 {
-    public async Task UpdateFileMetadataAsync(string filename, YouTubeMetadata youTubeMetadata, RecordingMatch musicBrainzMetadata)
+    public async Task UpdateFileMetadataAsync(string filename, YouTubeTrackMetadata youTubeMetadata, RecordingMatch musicBrainzMetadata)
     {
-        var track =
-            musicBrainzMetadata.Medium.Track
-                .First(x => CompareHelper.ToSearchNormalisedTitle(x.Title) == CompareHelper.ToSearchNormalisedTitle(musicBrainzMetadata.Recording.Title));
-
         var bestThumbnailPreferenceScore =
             youTubeMetadata.Thumbnails != null && youTubeMetadata.Thumbnails.Any()
                 ? youTubeMetadata.Thumbnails.Min(x => x.Preference)
@@ -37,13 +31,14 @@ internal class FileMetadataService(HttpClient httpClient) : IFileMetadataService
         tag.AlbumArtists = youTubeMetadata.Artists!.First().Split(',');
         tag.Year = (uint)youTubeMetadata.ReleaseYear;
         tag.Genres = youTubeMetadata.Categories;
-        _ = uint.TryParse(track.Number, out var trackNumber);
+        _ = uint.TryParse(musicBrainzMetadata.Track.Number, out var trackNumber);
         tag.Track = trackNumber;
         tag.TrackCount = (uint)musicBrainzMetadata.Release.TrackCount;
 
         tag.MusicBrainzReleaseGroupId = musicBrainzMetadata.ReleaseGroup.Id.ToString();
         tag.MusicBrainzReleaseId = musicBrainzMetadata.Release.Id.ToString();
-        tag.MusicBrainzTrackId = track.Id.ToString();
+        tag.MusicBrainzDiscId = musicBrainzMetadata.Medium.Id.ToString();
+        tag.MusicBrainzTrackId = musicBrainzMetadata.Track.Id.ToString();
 
         if (thumbnailBytes != null)
         {

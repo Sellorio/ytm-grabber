@@ -1,22 +1,37 @@
-﻿using System;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace Sellorio.YouTubeMusicGrabber.Services;
 
 internal partial class YouTubeUriService : IYouTubeUriService
 {
-    public string ParseVideoId(string uri)
+    public bool TryParseTrackId(string uri, out string id)
     {
-        var match = YouTubeUriRegex().Match(uri);
+        var match = YouTubeTrackUriRegex().Match(uri);
 
         if (!match.Success)
         {
-            throw new ArgumentException("Unexpected youtube uri.");
+            id = null;
+            return false;
         }
 
-        var youtubeId = match.Groups[1].Value;
+        id = match.Groups[1].Value;
 
-        return youtubeId;
+        return true;
+    }
+
+    public bool TryParseAlbumId(string uri, out string id)
+    {
+        var match = YouTubeAlbumUriRegex().Match(uri);
+
+        if (!match.Success)
+        {
+            id = null;
+            return false;
+        }
+
+        id = match.Groups[1].Value;
+
+        return true;
     }
 
     // Supported Uri Formats:
@@ -24,5 +39,11 @@ internal partial class YouTubeUriService : IYouTubeUriService
     // https://youtu.be/Cqp-dB7GVI8
     // https://www.youtube.com/watch?v=Cqp-dB7GVI8
     [GeneratedRegex(@"^https:\/\/(?:music\.youtube\.com\/watch\?v=|youtu\.be\/|www\.youtube\.com\/watch\?v=)([a-zA-Z0-9-]+)[&a-zA-Z0-9=_]*$", RegexOptions.IgnoreCase)]
-    private static partial Regex YouTubeUriRegex();
+    private static partial Regex YouTubeTrackUriRegex();
+
+    // Supported Uri Formats:
+    // https://music.youtube.com/playlist?list=Cqp-dB7GVI8
+    // https://www.youtube.com/playlist?list=Cqp-dB7GVI8
+    [GeneratedRegex(@"^https:\/\/(?:music\.youtube\.com\/playlist\?list=|www\.youtube\.com\/playlist\?list=)([a-zA-Z0-9-]+)[&a-zA-Z0-9=_]*$", RegexOptions.IgnoreCase)]
+    private static partial Regex YouTubeAlbumUriRegex();
 }

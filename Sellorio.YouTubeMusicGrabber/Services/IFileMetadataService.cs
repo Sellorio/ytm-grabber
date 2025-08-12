@@ -5,5 +5,5 @@ using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 namespace Sellorio.YouTubeMusicGrabber.Services;
 internal interface IFileMetadataService
 {
-    Task UpdateFileMetadataAsync(string filename, YouTubeMetadata youTubeMetadata, RecordingMatch musicBrainzMetadata);
+    Task UpdateFileMetadataAsync(string filename, YouTubeTrackMetadata youTubeMetadata, RecordingMatch musicBrainzMetadata);
 }

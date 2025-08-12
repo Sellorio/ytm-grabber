@@ -2,7 +2,7 @@
   "profiles": {
     "Sellorio.YouTubeMusicGrabber": {
         "commandName": "Project",
-        "commandLineArgs": "grab-single https://www.youtube.com/watch?v=G5LaznEd4gU -o test.mp3"
+        "commandLineArgs": "sync -o .\\Music -a https://music.youtube.com/playlist?list=PLIr8oAMYGij1tJ0AUhLb6uurZ1dJAN3zE --add-albums"
     }
   }
 }

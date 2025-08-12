@@ -31,13 +31,20 @@ internal class GrabSingleCommand : ICommand
 
         var musicBrainzService = serviceProvider.GetRequiredService<IMusicBrainzService>();
         var youTubeDownloadService = serviceProvider.GetRequiredService<IYouTubeDownloadService>();
+        var youTubeApiService = serviceProvider.GetRequiredService<IYouTubeApiService>();
         var youTubeMetadataService = serviceProvider.GetRequiredService<IYouTubeMetadataService>();
         var youTubeUriService = serviceProvider.GetRequiredService<IYouTubeUriService>();
         var fileMetadataService = serviceProvider.GetRequiredService<IFileMetadataService>();
 
-        var youTubeUri = youTubeUriService.ParseVideoId(Uri);
-        var youTubeMetadata = await youTubeMetadataService.FetchMetadataAsync(youTubeUri);
-        var musicBrainzMetadata = await musicBrainzService.FindRecordingAsync(youTubeMetadata.Album, youTubeMetadata.Artists[0], youTubeMetadata.Title, youTubeMetadata.ReleaseDate);
+        if (!youTubeUriService.TryParseTrackId(Uri, out var youTubeUri))
+        {
+            throw new ArgumentException("Invalid youtube video/track uri.");
+        }
+
+        var youTubeMetadata = await youTubeApiService.GetTrackMetadataAsync(youTubeUri);
+        var additionalInfo = await youTubeMetadataService.GetTrackAdditionalInfoAsync(youTubeMetadata.Id);
+        var albumTracks = await youTubeApiService.GetPlaylistEntriesAsync(additionalInfo.AlbumId);
+        var musicBrainzMetadata = await musicBrainzService.FindRecordingAsync(youTubeMetadata.Album, youTubeMetadata.Artists[0], youTubeMetadata.Title, youTubeMetadata.ReleaseDate, albumTracks.Count);
         await youTubeDownloadService.DownloadAsMp3Async(youTubeMetadata, outputFilenameAbsolute, (int)(Quality ?? Options.Quality.High));
 
         try
