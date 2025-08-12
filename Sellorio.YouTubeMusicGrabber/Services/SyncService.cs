@@ -137,7 +137,7 @@ internal class SyncService(
     private async Task AddTrackAsync(string outputPath, IList<ManifestAlbum> manifest, YouTubeTrackMetadata metadata, YouTubeTrackAdditionalInfo additionalTrackInfo, int albumTrackCount)
     {
         var musicBrainzMetadata = await musicBrainzService.FindRecordingAsync(metadata.Album, metadata.Artists[0], metadata.Title, metadata.ReleaseDate, albumTrackCount);
-        var outputFilename = GetTrackOutputFilename(metadata, musicBrainzMetadata.Track);
+        var outputFilename = GetTrackOutputFilename(metadata, musicBrainzMetadata.Release, musicBrainzMetadata.Track);
         var absoluteOutputFilename = Path.GetFullPath(Path.Combine(outputPath, outputFilename));
         var directoryPath = Path.GetDirectoryName(absoluteOutputFilename);
 
@@ -195,10 +195,10 @@ internal class SyncService(
         await File.WriteAllTextAsync(manifestFilename, _yamlSerializer.Serialize(manifest));
     }
 
-    private static string GetTrackOutputFilename(YouTubeTrackMetadata metadata, Track track)
+    private static string GetTrackOutputFilename(YouTubeTrackMetadata metadata, Release release, Track track)
     {
-        var safeAlbumName = RemoveUnsafeFilenameCharacters(metadata.Album);
-        var safeTitle = RemoveUnsafeFilenameCharacters(metadata.Title);
+        var safeAlbumName = RemoveUnsafeFilenameCharacters(release.Title);
+        var safeTitle = RemoveUnsafeFilenameCharacters(track.Title);
 
         return
             Path.Combine(

@@ -26,7 +26,7 @@ internal class FileMetadataService(HttpClient httpClient) : IFileMetadataService
 
         using var mp3 = File.Create(filename);
         var tag = mp3.GetTag(TagTypes.Id3v2, true);
-        tag.Title = musicBrainzMetadata.Recording.Title;
+        tag.Title = musicBrainzMetadata.Track.Title;
         tag.Album = musicBrainzMetadata.Release.Title;
         tag.AlbumArtists = youTubeMetadata.Artists!.First().Split(',');
         tag.Year = (uint)youTubeMetadata.ReleaseYear;
