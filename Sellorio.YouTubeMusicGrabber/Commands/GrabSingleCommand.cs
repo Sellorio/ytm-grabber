@@ -41,9 +41,18 @@ internal class GrabSingleCommand : ICommand
             throw new ArgumentException("Invalid youtube video/track uri.");
         }
 
-        var youTubeMetadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(youTubeId);
+        var latestYouTubeId = await youTubeMetadataService.GetLatestYouTubeIdAsync(youTubeId);
+        var youTubeMetadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(latestYouTubeId);
         var albumTracks = await youTubeApiService.GetPlaylistEntriesAsync(youTubeMetadata.AlbumId);
-        var musicBrainzMetadata = await musicBrainzService.FindRecordingAsync(youTubeMetadata.Album, youTubeMetadata.Artists, youTubeMetadata.Title, youTubeMetadata.ReleaseDate, albumTracks.Count);
+
+        var musicBrainzMetadata =
+            await musicBrainzService.FindRecordingAsync(
+                youTubeMetadata.Album,
+                youTubeMetadata.Artists,
+                [youTubeMetadata.Title, youTubeMetadata.AlternateTitle],
+                youTubeMetadata.ReleaseDate,
+                youTubeMetadata.ReleaseYear,
+                albumTracks.Count);
 
         await youTubeDownloadService.DownloadAsMp3Async(youTubeMetadata, outputFilenameAbsolute, (int)(Quality ?? Options.Quality.High));
 

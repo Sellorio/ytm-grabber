@@ -44,12 +44,17 @@ internal class YouTubeTrackMetadata
     [JsonPropertyName("release_date")]
     public string ReleaseDateYYYYMMDD { get; set; }
 
+    [JsonPropertyName("release_year")]
+    public int? ReleaseYear { get; set; }
+
     [JsonPropertyName("filename")]
     public string Filename { get; set; }
 
     [JsonIgnore]
-    public DateOnly ReleaseDate =>
-        new(int.Parse(ReleaseDateYYYYMMDD.AsSpan(0, 4)),
-            int.Parse(ReleaseDateYYYYMMDD.AsSpan(4, 2)),
-            int.Parse(ReleaseDateYYYYMMDD.AsSpan(6, 2)));
+    public DateOnly? ReleaseDate =>
+        ReleaseDateYYYYMMDD == null
+            ? null
+            : new(int.Parse(ReleaseDateYYYYMMDD.AsSpan(0, 4)),
+                  int.Parse(ReleaseDateYYYYMMDD.AsSpan(4, 2)),
+                  int.Parse(ReleaseDateYYYYMMDD.AsSpan(6, 2)));
 }

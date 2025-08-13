@@ -29,16 +29,16 @@ internal class FileMetadataService(HttpClient httpClient) : IFileMetadataService
         var tag = mp3.GetTag(TagTypes.Id3v2, true);
         tag.Title = musicBrainzMetadata.Track.Title;
 
-        if (CompareHelper.ToSearchNormalisedTitle(musicBrainzMetadata.Track.Title) != CompareHelper.ToSearchNormalisedTitle(youTubeMetadata.Title))
+        if (youTubeMetadata.Title != youTubeMetadata.AlternateTitle &&
+            CompareHelper.ToSearchNormalisedTitle(youTubeMetadata.AlternateTitle) != CompareHelper.ToSearchNormalisedTitle(musicBrainzMetadata.Track.Title))
         {
-            // for tracks that have an english translation in YouTube, add that in as a subtitle
-            tag.Subtitle = youTubeMetadata.Title;
+            tag.Subtitle = youTubeMetadata.AlternateTitle;
         }
 
         tag.Album = musicBrainzMetadata.Release.Title;
-        tag.AlbumArtists = musicBrainzMetadata.Release.ArtistCredit.Select(x => x.Name).ToArray();
+        tag.AlbumArtists = musicBrainzMetadata.Release.ArtistCredit?.Select(x => x.Name).ToArray();
         tag.Performers = musicBrainzMetadata.Recording.ArtistCredit.Select(x => x.Name).ToArray();
-        tag.Year = (uint)musicBrainzMetadata.Release.ReleaseYear;
+        tag.Year = (uint)(musicBrainzMetadata.Release.ReleaseYear ?? default);
         _ = uint.TryParse(musicBrainzMetadata.Track.Number, out var trackNumber);
         tag.Track = trackNumber;
         tag.TrackCount = (uint)musicBrainzMetadata.Release.TrackCount;

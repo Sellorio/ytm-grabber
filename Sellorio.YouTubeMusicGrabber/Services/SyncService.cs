@@ -4,8 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Sellorio.YouTubeMusicGrabber.Commands.Exceptions;
 using Sellorio.YouTubeMusicGrabber.Commands.Options;
+using Sellorio.YouTubeMusicGrabber.Exceptions;
 using Sellorio.YouTubeMusicGrabber.Models.MusicBrainz;
 using Sellorio.YouTubeMusicGrabber.Models.Sync;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
@@ -67,7 +67,8 @@ internal class SyncService(
             }
             else if (youTubeUriService.TryParseTrackId(uri, out var trackId))
             {
-                var metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(trackId);
+                var latestTrackId = await youTubeMetadataService.GetLatestYouTubeIdAsync(trackId);
+                var metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(latestTrackId);
 
                 if (addAlbums)
                 {
@@ -107,9 +108,11 @@ internal class SyncService(
 
         foreach (var track in tracksList)
         {
+            var latestTrackId = await youTubeMetadataService.GetLatestYouTubeIdAsync(track.Id);
+
             if (track.Title == "[Private video]")
             {
-                Console.WriteLine($"Skipping private upload {track.Id}.");
+                Console.WriteLine($"Skipping private upload {latestTrackId}.");
                 continue;
             }
 
@@ -119,7 +122,7 @@ internal class SyncService(
 
                 try
                 {
-                    metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(track.Id);
+                    metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(latestTrackId);
                 }
                 catch (TrackUnavailableException ex)
                 {
@@ -131,9 +134,9 @@ internal class SyncService(
             }
             else
             {
-                if (manifest.Any(x => x.Tracks.Any(x => x.YouTubeId == track.Id)))
+                if (manifest.Any(x => x.Tracks.Any(x => x.YouTubeId == latestTrackId)))
                 {
-                    Console.WriteLine($"Skipping already downloaded {track.Id}.");
+                    Console.WriteLine($"Skipping already downloaded {latestTrackId}.");
                     continue;
                 }
 
@@ -143,7 +146,7 @@ internal class SyncService(
 
                 try
                 {
-                    metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(track.Id);
+                    metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(latestTrackId);
                 }
                 catch (TrackUnavailableException ex)
                 {
@@ -168,8 +171,9 @@ internal class SyncService(
             await musicBrainzService.FindRecordingAsync(
                 metadata.Album,
                 metadata.Artists,
-                metadata.Title,
+                [metadata.Title, metadata.AlternateTitle],
                 metadata.ReleaseDate,
+                metadata.ReleaseYear,
                 albumTrackCount,
                 promptForIdIfNotFound: true);
 
@@ -238,7 +242,7 @@ internal class SyncService(
 
         return
             Path.Combine(
-                safeAlbumName + " (" + release.ReleaseYear + ")",
+                release.ReleaseYear == null ? safeAlbumName : safeAlbumName + " (" + release.ReleaseYear + ")",
                 track.Number + " - " + safeTitle + ".mp3");
     }
 

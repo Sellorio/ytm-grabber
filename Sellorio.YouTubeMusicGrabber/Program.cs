@@ -7,6 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Sellorio.YouTubeMusicGrabber.Commands;
 using Sellorio.YouTubeMusicGrabber.Services;
 
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
 var withYouTubeCookiesHandler = CreateHandlerFromCookiesFile("cookies.txt");
 
 var services = new ServiceCollection();

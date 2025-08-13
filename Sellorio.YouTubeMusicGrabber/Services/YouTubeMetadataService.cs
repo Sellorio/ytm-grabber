@@ -10,12 +10,31 @@ namespace Sellorio.YouTubeMusicGrabber.Services;
 
 internal partial class YouTubeMetadataService(HttpClient httpClient, IYouTubeApiService youTubeApiService) : IYouTubeMetadataService
 {
+    public async Task<string> GetLatestYouTubeIdAsync(string youTubeId)
+    {
+        for (var i = 0; i < 5; i++)
+        {
+            var response = await httpClient.GetAsync("https://music.youtube.com/watch?v=" + youTubeId);
+            response.EnsureSuccessStatusCode();
+            var responseText = await response.Content.ReadAsStringAsync();
+            var videoId = Regex.Match(responseText, @$"\\""videoId\\"":\\""({Constants.YouTubeIdRegex})\\""").Groups[1].Value;
+
+            if (!string.IsNullOrEmpty(videoId))
+            {
+                return videoId;
+            }
+
+            await Task.Delay(1000);
+        }
+
+        throw new InvalidOperationException("Failed to retrieve latest video id due to an unknown issue.");
+    }
+
     public async Task<YouTubeTrackMetadata> GetEnrichedTrackMetadataAsync(string youTubeId)
     {
         var metadata = await youTubeApiService.GetTrackMetadataAsync(youTubeId);
 
-        var latestYouTubeId = await GetLatestYouTubeIdAsync(youTubeId);
-        var nextApiData = await GetDataFromNextApiAsync(latestYouTubeId);
+        var nextApiData = await GetDataFromNextApiAsync(youTubeId);
 
         var trackPlayerPanelElement =
             nextApiData.RootElement
@@ -32,21 +51,28 @@ internal partial class YouTubeMetadataService(HttpClient httpClient, IYouTubeApi
                 .GetProperty("contents")[0]
                 .GetProperty("playlistPanelVideoRenderer");
 
-        var actualTrackTitle =
+        var trackTitle =
             trackPlayerPanelElement
                 .GetProperty("title")
                 .GetProperty("runs")[0]
                 .GetProperty("text")
                 .GetString();
 
-        var titleSeparators = Regex.Matches(actualTrackTitle, @" \- ");
+        var titleSeparators = Regex.Matches(trackTitle, @" \- ");
 
         // For titles with translations baked in, split them up
         //   e.g. "未来キュレーション - Mirai Curation"
         // This appears to be the only option for getting the original, untranslated title
         if (titleSeparators.Count == 1)
         {
-            actualTrackTitle = actualTrackTitle.Substring(0, titleSeparators[0].Index);
+            var title1 = trackTitle.Substring(0, titleSeparators[0].Index);
+            var title2 = trackTitle.Substring(titleSeparators[0].Index + 3);
+
+            if (title1 == metadata.Title || title1 == metadata.AlternateTitle)
+            {
+                metadata.Title = title1;
+                metadata.AlternateTitle = title2;
+            }
         }
 
         var byLineSections =
@@ -65,20 +91,10 @@ internal partial class YouTubeMetadataService(HttpClient httpClient, IYouTubeApi
                 .GetProperty("browseId")
                 .GetString();
 
-        metadata.Title = actualTrackTitle;
         metadata.Album = albumName;
         metadata.AlbumId = await GetAlbumIdAsync(albumBrowseId);
 
         return metadata;
-    }
-
-    private async Task<string> GetLatestYouTubeIdAsync(string youTubeId)
-    {
-        var response = await httpClient.GetAsync("https://music.youtube.com/watch?v=" + youTubeId);
-        response.EnsureSuccessStatusCode();
-        var responseText = await response.Content.ReadAsStringAsync();
-        var videoId = Regex.Match(responseText, @$"\\""videoId\\"":\\""({Constants.YouTubeIdRegex})\\""").Groups[1].Value;
-        return videoId;
     }
 
     private async Task<JsonDocument> GetDataFromNextApiAsync(string youTubeId)

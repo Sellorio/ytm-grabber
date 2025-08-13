@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Sellorio.YouTubeMusicGrabber.Commands.Exceptions;
+using Sellorio.YouTubeMusicGrabber.Exceptions;
 using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 

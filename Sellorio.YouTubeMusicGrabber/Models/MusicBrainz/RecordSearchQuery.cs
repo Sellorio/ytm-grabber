@@ -2,7 +2,7 @@
 
 internal class RecordSearchQuery
 {
-    public string Title { get; set; }
+    public string[] PossibleTitles { get; set; }
     public string Album { get; set; }
     public string[] Artists { get; set; }
 }

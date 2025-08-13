@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Sellorio.YouTubeMusicGrabber.Commands.Exceptions;
+namespace Sellorio.YouTubeMusicGrabber.Exceptions;
 
 internal class TrackUnavailableException(string youTubeId) : ApplicationException("The track is not available on YouTube anymore.")
 {
