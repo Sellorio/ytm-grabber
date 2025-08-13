@@ -6,5 +6,5 @@ namespace Sellorio.YouTubeMusicGrabber.Services;
 
 internal interface IMusicBrainzService
 {
-    Task<RecordingMatch> FindRecordingAsync(string album, string artist, string title, DateOnly releaseDate, int albumTrackCount);
+    Task<RecordingMatch> FindRecordingAsync(string album, string[] artists, string title, DateOnly releaseDate, int albumTrackCount, bool promptForIdIfNotFound = false);
 }

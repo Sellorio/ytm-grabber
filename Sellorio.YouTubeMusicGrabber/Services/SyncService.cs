@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Sellorio.YouTubeMusicGrabber.Commands.Exceptions;
 using Sellorio.YouTubeMusicGrabber.Commands.Options;
 using Sellorio.YouTubeMusicGrabber.Models.MusicBrainz;
 using Sellorio.YouTubeMusicGrabber.Models.Sync;
@@ -66,14 +67,26 @@ internal class SyncService(
             }
             else if (youTubeUriService.TryParseTrackId(uri, out var trackId))
             {
-                var additionalTrackInfo = await youTubeMetadataService.GetTrackAdditionalInfoAsync(trackId);
-                var albumTracksList = await youTubeApiService.GetPlaylistEntriesAsync(additionalTrackInfo.AlbumId);
-                await AddTrackAsync(outputPath, manifest, trackId, additionalTrackInfo, albumTracksList.Count);
+                var metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(trackId);
+
+                if (addAlbums)
+                {
+                    await AddAlbumAsync(outputPath, manifest, metadata.AlbumId, false, true);
+                }
+                else
+                {
+                    var albumTracksList = await youTubeApiService.GetPlaylistEntriesAsync(metadata.AlbumId);
+                    await AddTrackAsync(outputPath, manifest, metadata, albumTracksList.Count);
+                }
             }
             else
             {
                 throw new ArgumentException("Unable to recognise album/track uri in --add.\r\n" + uri);
             }
+        }
+        catch (TrackUnavailableException ex)
+        {
+            Console.WriteLine(ex.ConsoleMessage);
         }
         catch (Exception ex)
         {
@@ -102,41 +115,64 @@ internal class SyncService(
 
             if (addAlbums)
             {
-                var additionalTrackInfo = await youTubeMetadataService.GetTrackAdditionalInfoAsync(track.Id);
-                await AddAlbumAsync(outputPath, manifest, additionalTrackInfo.AlbumId, false, true);
+                YouTubeTrackMetadata metadata;
+
+                try
+                {
+                    metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(track.Id);
+                }
+                catch (TrackUnavailableException ex)
+                {
+                    Console.WriteLine(ex.ConsoleMessage);
+                    continue;
+                }
+
+                await AddAlbumAsync(outputPath, manifest, metadata.AlbumId, false, true);
             }
             else
             {
+                if (manifest.Any(x => x.Tracks.Any(x => x.YouTubeId == track.Id)))
+                {
+                    Console.WriteLine($"Skipping already downloaded {track.Id}.");
+                    continue;
+                }
+
                 var trackCount = tracksList.Count;
-                var additionalTrackInfo = await youTubeMetadataService.GetTrackAdditionalInfoAsync(track.Id);
+                
+                YouTubeTrackMetadata metadata;
+
+                try
+                {
+                    metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(track.Id);
+                }
+                catch (TrackUnavailableException ex)
+                {
+                    Console.WriteLine(ex.ConsoleMessage);
+                    continue;
+                }
 
                 if (!isAlbum)
                 {
-                    var albumTracksList = await youTubeApiService.GetPlaylistEntriesAsync(additionalTrackInfo.AlbumId);
+                    var albumTracksList = await youTubeApiService.GetPlaylistEntriesAsync(metadata.AlbumId);
                     trackCount = albumTracksList.Count;
                 }
 
-                await AddTrackAsync(outputPath, manifest, track.Id, additionalTrackInfo, trackCount);
+                await AddTrackAsync(outputPath, manifest, metadata, trackCount);
             }
         }
     }
 
-    private async Task AddTrackAsync(string outputPath, IList<ManifestAlbum> manifest, string youTubeId, YouTubeTrackAdditionalInfo additionalTrackInfo, int albumTrackCount)
+    private async Task AddTrackAsync(string outputPath, IList<ManifestAlbum> manifest, YouTubeTrackMetadata metadata, int albumTrackCount)
     {
-        if (manifest.Any(x => x.Tracks.Any(x => x.YouTubeId == youTubeId)))
-        {
-            Console.WriteLine($"Skipping already downloaded {youTubeId}.");
-            return;
-        }
+        var musicBrainzMetadata =
+            await musicBrainzService.FindRecordingAsync(
+                metadata.Album,
+                metadata.Artists,
+                metadata.Title,
+                metadata.ReleaseDate,
+                albumTrackCount,
+                promptForIdIfNotFound: true);
 
-        var metadata = await youTubeApiService.GetTrackMetadataAsync(youTubeId);
-        
-        await AddTrackAsync(outputPath, manifest, metadata, additionalTrackInfo, albumTrackCount);
-    }
-
-    private async Task AddTrackAsync(string outputPath, IList<ManifestAlbum> manifest, YouTubeTrackMetadata metadata, YouTubeTrackAdditionalInfo additionalTrackInfo, int albumTrackCount)
-    {
-        var musicBrainzMetadata = await musicBrainzService.FindRecordingAsync(metadata.Album, metadata.Artists[0], metadata.Title, metadata.ReleaseDate, albumTrackCount);
         var outputFilename = GetTrackOutputFilename(metadata, musicBrainzMetadata.Release, musicBrainzMetadata.Track);
         var absoluteOutputFilename = Path.GetFullPath(Path.Combine(outputPath, outputFilename));
         var directoryPath = Path.GetDirectoryName(absoluteOutputFilename);
@@ -151,7 +187,7 @@ internal class SyncService(
         try
         {
             await fileMetadataService.UpdateFileMetadataAsync(absoluteOutputFilename, metadata, musicBrainzMetadata);
-            await AddTrackToManifestAsync(outputPath, outputFilename, manifest, metadata, musicBrainzMetadata, additionalTrackInfo);
+            await AddTrackToManifestAsync(outputPath, outputFilename, manifest, metadata, musicBrainzMetadata);
         }
         catch
         {
@@ -162,7 +198,7 @@ internal class SyncService(
         Console.WriteLine($"Added {metadata.Id} ({musicBrainzMetadata.Recording.Title}) successfully!");
     }
 
-    private async Task AddTrackToManifestAsync(string outputPath, string outputFilename, IList<ManifestAlbum> manifest, YouTubeTrackMetadata metadata, RecordingMatch musicBrainzMetadata, YouTubeTrackAdditionalInfo additionalTrackInfo)
+    private async Task AddTrackToManifestAsync(string outputPath, string outputFilename, IList<ManifestAlbum> manifest, YouTubeTrackMetadata metadata, RecordingMatch musicBrainzMetadata)
     {
         var album = manifest.FirstOrDefault(x => x.MusicBrainzId == musicBrainzMetadata.Release.Id);
 
@@ -173,7 +209,7 @@ internal class SyncService(
                 FolderName = Path.GetFileName(Path.GetDirectoryName(outputFilename)),
                 MusicBrainzId = musicBrainzMetadata.Release.Id,
                 Tracks = [],
-                YouTubeId = additionalTrackInfo.AlbumId
+                YouTubeId = metadata.AlbumId
             };
 
             manifest.Add(album);

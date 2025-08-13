@@ -36,15 +36,15 @@ internal class GrabSingleCommand : ICommand
         var youTubeUriService = serviceProvider.GetRequiredService<IYouTubeUriService>();
         var fileMetadataService = serviceProvider.GetRequiredService<IFileMetadataService>();
 
-        if (!youTubeUriService.TryParseTrackId(Uri, out var youTubeUri))
+        if (!youTubeUriService.TryParseTrackId(Uri, out var youTubeId))
         {
             throw new ArgumentException("Invalid youtube video/track uri.");
         }
 
-        var youTubeMetadata = await youTubeApiService.GetTrackMetadataAsync(youTubeUri);
-        var additionalInfo = await youTubeMetadataService.GetTrackAdditionalInfoAsync(youTubeMetadata.Id);
-        var albumTracks = await youTubeApiService.GetPlaylistEntriesAsync(additionalInfo.AlbumId);
-        var musicBrainzMetadata = await musicBrainzService.FindRecordingAsync(youTubeMetadata.Album, youTubeMetadata.Artists[0], youTubeMetadata.Title, youTubeMetadata.ReleaseDate, albumTracks.Count);
+        var youTubeMetadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(youTubeId);
+        var albumTracks = await youTubeApiService.GetPlaylistEntriesAsync(youTubeMetadata.AlbumId);
+        var musicBrainzMetadata = await musicBrainzService.FindRecordingAsync(youTubeMetadata.Album, youTubeMetadata.Artists, youTubeMetadata.Title, youTubeMetadata.ReleaseDate, albumTracks.Count);
+
         await youTubeDownloadService.DownloadAsMp3Async(youTubeMetadata, outputFilenameAbsolute, (int)(Quality ?? Options.Quality.High));
 
         try

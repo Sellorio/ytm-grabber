@@ -11,4 +11,5 @@ internal class Medium
     public int TrackCount { get; set; }
     public int TrackOffset { get; set; }
     public IList<Track> Track { get; set; }
+    public IList<Track> Tracks { get; set; }
 }

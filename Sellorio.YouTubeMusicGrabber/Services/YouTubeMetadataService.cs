@@ -8,18 +8,68 @@ using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 
 namespace Sellorio.YouTubeMusicGrabber.Services;
 
-internal partial class YouTubeMetadataService(HttpClient httpClient) : IYouTubeMetadataService
+internal partial class YouTubeMetadataService(HttpClient httpClient, IYouTubeApiService youTubeApiService) : IYouTubeMetadataService
 {
-    public async Task<YouTubeTrackAdditionalInfo> GetTrackAdditionalInfoAsync(string youTubeId)
+    public async Task<YouTubeTrackMetadata> GetEnrichedTrackMetadataAsync(string youTubeId)
     {
-        var latestYouTubeId = await GetLatestYouTubeIdAsync(youTubeId);
-        var browseId = await GetBrowseIdAsync(latestYouTubeId);
-        var albumId = await GetAlbumIdAsync(browseId);
+        var metadata = await youTubeApiService.GetTrackMetadataAsync(youTubeId);
 
-        return new YouTubeTrackAdditionalInfo
+        var latestYouTubeId = await GetLatestYouTubeIdAsync(youTubeId);
+        var nextApiData = await GetDataFromNextApiAsync(latestYouTubeId);
+
+        var trackPlayerPanelElement =
+            nextApiData.RootElement
+                .GetProperty("contents")
+                .GetProperty("singleColumnMusicWatchNextResultsRenderer")
+                .GetProperty("tabbedRenderer")
+                .GetProperty("watchNextTabbedResultsRenderer")
+                .GetProperty("tabs")[0]
+                .GetProperty("tabRenderer")
+                .GetProperty("content")
+                .GetProperty("musicQueueRenderer")
+                .GetProperty("content")
+                .GetProperty("playlistPanelRenderer")
+                .GetProperty("contents")[0]
+                .GetProperty("playlistPanelVideoRenderer");
+
+        var actualTrackTitle =
+            trackPlayerPanelElement
+                .GetProperty("title")
+                .GetProperty("runs")[0]
+                .GetProperty("text")
+                .GetString();
+
+        var titleSeparators = Regex.Matches(actualTrackTitle, @" \- ");
+
+        // For titles with translations baked in, split them up
+        //   e.g. "未来キュレーション - Mirai Curation"
+        // This appears to be the only option for getting the original, untranslated title
+        if (titleSeparators.Count == 1)
         {
-            AlbumId = albumId
-        };
+            actualTrackTitle = actualTrackTitle.Substring(0, titleSeparators[0].Index);
+        }
+
+        var byLineSections =
+            trackPlayerPanelElement
+                .GetProperty("longBylineText")
+                .GetProperty("runs");
+
+        var albumSection = byLineSections[byLineSections.GetArrayLength() - 3];
+
+        var albumName = albumSection.GetProperty("text").GetString();
+
+        var albumBrowseId =
+            albumSection
+                .GetProperty("navigationEndpoint")
+                .GetProperty("browseEndpoint")
+                .GetProperty("browseId")
+                .GetString();
+
+        metadata.Title = actualTrackTitle;
+        metadata.Album = albumName;
+        metadata.AlbumId = await GetAlbumIdAsync(albumBrowseId);
+
+        return metadata;
     }
 
     private async Task<string> GetLatestYouTubeIdAsync(string youTubeId)
@@ -31,7 +81,7 @@ internal partial class YouTubeMetadataService(HttpClient httpClient) : IYouTubeM
         return videoId;
     }
 
-    private async Task<string> GetBrowseIdAsync(string youTubeId)
+    private async Task<JsonDocument> GetDataFromNextApiAsync(string youTubeId)
     {
         var response =
             await httpClient.PostAsync(
@@ -50,28 +100,7 @@ internal partial class YouTubeMetadataService(HttpClient httpClient) : IYouTubeM
         var responseText = await response.Content.ReadAsStringAsync();
         var jsonDocument = JsonDocument.Parse(responseText);
 
-        var albumBrowseId =
-            jsonDocument.RootElement
-                .GetProperty("contents")
-                .GetProperty("singleColumnMusicWatchNextResultsRenderer")
-                .GetProperty("tabbedRenderer")
-                .GetProperty("watchNextTabbedResultsRenderer")
-                .GetProperty("tabs")[0]
-                .GetProperty("tabRenderer")
-                .GetProperty("content")
-                .GetProperty("musicQueueRenderer")
-                .GetProperty("content")
-                .GetProperty("playlistPanelRenderer")
-                .GetProperty("contents")[0]
-                .GetProperty("playlistPanelVideoRenderer")
-                .GetProperty("longBylineText")
-                .GetProperty("runs")[2]
-                .GetProperty("navigationEndpoint")
-                .GetProperty("browseEndpoint")
-                .GetProperty("browseId")
-                .GetString();
-
-        return albumBrowseId;
+        return jsonDocument;
     }
 
     private async Task<string> GetAlbumIdAsync(string browseId)

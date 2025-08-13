@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.MusicBrainz;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 using TagLib;
@@ -27,10 +28,17 @@ internal class FileMetadataService(HttpClient httpClient) : IFileMetadataService
         using var mp3 = File.Create(filename);
         var tag = mp3.GetTag(TagTypes.Id3v2, true);
         tag.Title = musicBrainzMetadata.Track.Title;
+
+        if (CompareHelper.ToSearchNormalisedTitle(musicBrainzMetadata.Track.Title) != CompareHelper.ToSearchNormalisedTitle(youTubeMetadata.Title))
+        {
+            // for tracks that have an english translation in YouTube, add that in as a subtitle
+            tag.Subtitle = youTubeMetadata.Title;
+        }
+
         tag.Album = musicBrainzMetadata.Release.Title;
-        tag.AlbumArtists = youTubeMetadata.Artists!.First().Split(',');
+        tag.AlbumArtists = musicBrainzMetadata.Release.ArtistCredit.Select(x => x.Name).ToArray();
+        tag.Performers = musicBrainzMetadata.Recording.ArtistCredit.Select(x => x.Name).ToArray();
         tag.Year = (uint)musicBrainzMetadata.Release.ReleaseYear;
-        tag.Genres = youTubeMetadata.Categories;
         _ = uint.TryParse(musicBrainzMetadata.Track.Number, out var trackNumber);
         tag.Track = trackNumber;
         tag.TrackCount = (uint)musicBrainzMetadata.Release.TrackCount;

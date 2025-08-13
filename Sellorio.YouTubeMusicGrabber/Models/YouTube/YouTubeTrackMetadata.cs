@@ -9,6 +9,9 @@ internal class YouTubeTrackMetadata
     [JsonPropertyName("id")]
     public string Id { get; set; }
 
+    // Overridden from YouTube API results since this value is not set to the true, displayed
+    // title of the track. For example, if there's a Japanese track with english translation,
+    // sometimes the title is not the Japanese version.
     [JsonPropertyName("title")]
     public string Title { get; set; }
 
@@ -17,6 +20,11 @@ internal class YouTubeTrackMetadata
 
     [JsonPropertyName("album")]
     public string Album { get; set; }
+
+    // Retrieved after the YouTube API call by reading the static JSON on the YouTube Music
+    // web page for the song.
+    [JsonIgnore]
+    public string AlbumId { get; set; }
 
     [JsonPropertyName("artists")]
     public string[] Artists { get; set; }

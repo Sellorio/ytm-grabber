@@ -16,6 +16,7 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
 {
     private const int MaxPageSize = 100;
     private const int MaxPagesToSearch = 10;
+    private const int DelayBetweenCalls = 1100;
 
     private static readonly JsonSerializerOptions _jsonOptions;
 
@@ -26,23 +27,62 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
         _jsonOptions.PropertyNamingPolicy = JsonNamingPolicy.KebabCaseLower;
     }
 
-    public async Task<RecordingMatch> FindRecordingAsync(string album, string artist, string title, DateOnly releaseDate, int albumTrackCount)
+    public async Task<RecordingMatch> FindRecordingAsync(string album, string[] artists, string title, DateOnly releaseDate, int albumTrackCount, bool promptForIdIfNotFound = false)
     {
-        var recording =
-            await SearchForRecordingAsync(album, artist, title)
-                ?? throw new InvalidOperationException("Unable to match metadata with MusicBrainz Recording.");
+        var recording = await SearchForRecordingAsync(album, artists, title);
+
+        if (recording == null)
+        {
+            if (!promptForIdIfNotFound)
+            {
+                return null;
+            }
+
+            var position = Console.GetCursorPosition();
+
+            Console.Write(
+                $"\r\n" +
+                $"Unable to find MusicBrainz Recording that matches the following details:\r\n" +
+                $"  Title:   {title}\r\n" +
+                $"  Album:   {album}\r\n" +
+                $"  Artists: {string.Join(";", artists)}\r\n" +
+                $"\r\n" +
+                $"Please manually search and enter the recording's ID or press enter to cancel.\r\n" +
+                $"MusicBrainz ID: ");
+
+            var musicBrainzIdString = Console.ReadLine();
+
+            if (string.IsNullOrEmpty(musicBrainzIdString))
+            {
+                return null;
+            }
+
+            if (!Guid.TryParse(musicBrainzIdString, out var musicBrainzId))
+            {
+                throw new InvalidOperationException("Invalid MusicBrainz ID: must be a valid GUID.");
+            }
+
+            recording = await GetRecordingByIdAsync(musicBrainzId);
+
+            if (recording == null)
+            {
+                throw new InvalidOperationException("MusicBrainz ID does not exist.");
+            }
+
+            ConsoleHelper.ResetBackToPositionAndClearConsole(position);
+            Console.WriteLine($"Using manually selected MusicBrainz Recording {musicBrainzId}...");
+        }
 
         var release =
             recording.Releases.FirstOrDefault(x =>
                 CompareHelper.ToSearchNormalisedTitle(x.Title) == CompareHelper.ToSearchNormalisedTitle(album) &&
                 x.Date == releaseDate &&
-                x.TrackCount == albumTrackCount &&
-                x.Media.Any(y => y.Format is "Digital Media" or "CD"))
+                x.Media.Any(y => y.Format is "Digital Media" or "CD" && y.TrackCount == albumTrackCount))
                     ?? throw new InvalidOperationException("Unable to match metadata with MusicBrainz Release.");
 
-        var medium = release.Media.First(x => x.Format is "Digital Media" or "CD");
-
-        var track = medium.Track.First(x => CompareHelper.ToSearchNormalisedTitle(x.Title) == CompareHelper.ToSearchNormalisedTitle(recording.Title));
+        var medium = release.Media.First(x => x.Format is "Digital Media" or "CD" && x.TrackCount == albumTrackCount);
+        var tracks = medium.Track ?? medium.Tracks;
+        var track = tracks.First(x => CompareHelper.ToSearchNormalisedTitle(x.Title) == CompareHelper.ToSearchNormalisedTitle(recording.Title));
 
         return new RecordingMatch
         {
@@ -54,68 +94,123 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
         };
     }
 
-    private async Task<Recording> SearchForRecordingAsync(string album, string artist, string title)
+    private async Task<Recording> GetRecordingByIdAsync(Guid recordingId)
+    {
+        var result = await httpClient.GetAsync($"https://musicbrainz.org/ws/2/recording/{recordingId}?fmt=json&inc=releases+artists+release-groups+media");
+
+        if (result.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        result.EnsureSuccessStatusCode();
+
+        var json = await result.Content.ReadAsStringAsync();
+        var recording = JsonSerializer.Deserialize<Recording>(json, _jsonOptions);
+
+        return recording;
+    }
+
+    private async Task<Recording> SearchForRecordingAsync(string album, string[] artists, string title)
     {
         var normalisedAlbum = CompareHelper.ToSearchNormalisedTitle(album);
-        var normalisedArtist = CompareHelper.ToSearchNormalisedName(artist);
+        var normalisedArtists = artists.Select(CompareHelper.ToSearchNormalisedName).ToArray();
         var normalisedTitle = CompareHelper.ToSearchNormalisedTitle(title);
 
-        Recording recording = null;
+        var featuredArtist = CompareHelper.ExtractFeaturingCredit(title, out int featuredArtistCreditIndex);
+        var normalisedFeaturedArtist = featuredArtist == null ? null : CompareHelper.ToSearchNormalisedName(featuredArtist);
+        var titleWithoutFeaturedArtist = featuredArtist == null ? title : title.Substring(0, featuredArtistCreditIndex);
 
-        var query = BuildQuery(album, artist, title);
+        Recording recording;
 
-        for (var offset = 0; offset < MaxPageSize * MaxPagesToSearch; offset += MaxPageSize)
+        var offset = 0;
+        var query = new RecordSearchQuery { Album = album, Artists = artists, Title = titleWithoutFeaturedArtist };
+        var searchResult = await DoSearchAsync(query, offset);
+
+        if (searchResult.Count == 0)
         {
-            // searching by artist returns no results if not in a compatible format so we won't do it for now - we'll use it for matching later
-            var searchUri = $"recording/?fmt=json&limit={MaxPageSize}&offset={offset}&query={Uri.EscapeDataString(query)}";
-            var response = await httpClient.GetAsync(searchUri);
-            response.EnsureSuccessStatusCode();
+            // try getting results without artists filter
+            query.Artists = null;
+            await Task.Delay(DelayBetweenCalls);
+            searchResult = await DoSearchAsync(query, offset);
+        }
 
-            var json = await response.Content.ReadAsStringAsync();
-            var searchResult = JsonSerializer.Deserialize<RecordingsSearchResult>(json, _jsonOptions);
+        if (searchResult.Count == 0)
+        {
+            // try getting results without album and artists filters
+            query.Album = null;
+            await Task.Delay(DelayBetweenCalls);
+            searchResult = await DoSearchAsync(query, offset);
+        }
 
-            recording = FindBestMatchedRecording(searchResult, normalisedAlbum, normalisedArtist, normalisedTitle);
+        if (searchResult.Count == 0)
+        {
+            // rip we tried so hard to get something... anything
+            return null;
+        }
+
+        while (true)
+        {
+            recording = FindPerfectlyMatchedRecording(searchResult, normalisedAlbum, normalisedArtists, normalisedTitle, normalisedFeaturedArtist);
 
             if (recording != null)
             {
                 return recording;
             }
 
-            // MusicBrainz has a 1s rate limit in place
-            await Task.Delay(1200);
+            if (offset >= MaxPageSize * MaxPagesToSearch || offset >= searchResult.Count)
+            {
+                break;
+            }
+
+            await Task.Delay(DelayBetweenCalls);
+            offset += MaxPageSize;
+            searchResult = await DoSearchAsync(query, offset);
         }
 
         return null;
     }
 
-    private static string BuildQuery(string album, string artist, string title)
+    private async Task<RecordingsSearchResult> DoSearchAsync(RecordSearchQuery query, int offset)
     {
-        if (album.Any(x => x > 255) || artist.Any(x => x > 255) || title.Any(x => x > 255))
-        {
-            return string.Join(' ', $"{EscapeMusicBrainzQueryValue(album)} {EscapeMusicBrainzQueryValue(artist)} {EscapeMusicBrainzQueryValue(title)}".Split(' ').Distinct());
-        }
-        else
-        {
-            var searchClauses = new Dictionary<string, string>
-            {
-                ["recording"] = title,
-                ["release"] = album
-            };
+        var queryText = BuildQuery(query.Album, query.Artists, query.Title);
+        var searchUri = $"recording/?fmt=json&limit={MaxPageSize}&offset={offset}&query={Uri.EscapeDataString(queryText)}";
+        var response = await httpClient.GetAsync(searchUri);
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync();
+        var searchResult = JsonSerializer.Deserialize<RecordingsSearchResult>(json, _jsonOptions);
+        return searchResult;
+    }
 
-            if (!artist.Contains('(') && !artist.Contains(',') && !artist.Contains(';'))
+    private static string BuildQuery(string album, string[] artists, string title)
+    {
+        var searchClauses = new List<(string Property, string Value)>
+        {
+            ("recording", title)
+        };
+
+        if (album != null)
+        {
+            searchClauses.Add(("release", album));
+        }
+
+        if (artists != null)
+        {
+            foreach (var artist in artists)
             {
-                searchClauses.Add("artist", artist);
+                if (!artist.Contains('(') && !artist.Contains(',') && !artist.Contains(';'))
+                {
+                    searchClauses.Add(("artist", artist));
+                }
             }
-
-            var query =
-                string.Join(
-                    " AND ",
-                    searchClauses.Select(x =>
-                        x.Value.Contains(' ')
-                            ? $"({x.Key}:\"{EscapeMusicBrainzQueryValue(x.Value)}\" OR {x.Key}:\"{EscapeMusicBrainzQueryValue(x.Value.Replace(" ", ""))}\")"
-                            : $"{x.Key}:\"{EscapeMusicBrainzQueryValue(x.Value)}\""));
-            return query;
         }
+
+        var query =
+            string.Join(
+                " AND ",
+                searchClauses.Select(x => $"{x.Property}:\"{EscapeMusicBrainzQueryValue(x.Value)}\""));
+
+        return query;
     }
 
     private static string EscapeMusicBrainzQueryValue(string input)
@@ -123,12 +218,7 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
         return MusicBrainzEscapeCharactersRegex().Replace(input, @"\$1");
     }
 
-    private static Recording FindBestMatchedRecording(RecordingsSearchResult searchResult, string album, string artist, string title)
-    {
-        return FindPerfectlyMatchedRecording(searchResult, album, artist, title);
-    }
-
-    private static Recording FindPerfectlyMatchedRecording(RecordingsSearchResult searchResult, string album, string artist, string title)
+    private static Recording FindPerfectlyMatchedRecording(RecordingsSearchResult searchResult, string album, string[] artists, string title, string featuredArtist)
     {
         foreach (var recording in searchResult.Recordings)
         {
@@ -143,7 +233,7 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
                 continue;
             }
 
-            if (recording.ArtistCredit.Any(x => !ContainsArtist(artist, x.Artist)))
+            if (recording.ArtistCredit.Any(x => !ContainsArtist(artists, x.Artist)))
             {
                 continue;
             }
@@ -154,12 +244,19 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
         return null;
     }
 
-    private static bool ContainsArtist(string artistText, Artist artist)
+    private static bool ContainsArtist(string[] artists, Artist artist)
     {
-        return
-            ContainsName(artistText, artist.Name) ||
-            artist.Aliases != null && artist.Aliases.Any(x => ContainsName(artistText, x.Name)) ||
-            ContainsName(artistText, artist.SortName);
+        foreach (var searchArtist in artists)
+        {
+            if (ContainsName(searchArtist, artist.Name) ||
+                artist.Aliases != null && artist.Aliases.Any(x => ContainsName(searchArtist, x.Name)) ||
+                ContainsName(searchArtist, artist.SortName))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool ContainsName(string artistText, string name)

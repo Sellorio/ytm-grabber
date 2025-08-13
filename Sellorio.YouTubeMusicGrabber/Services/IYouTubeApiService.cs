@@ -7,6 +7,6 @@ namespace Sellorio.YouTubeMusicGrabber.Services;
 internal interface IYouTubeApiService
 {
     Task DownloadAsync(string youTubeId);
-    Task<IList<YouTubeTrackBasicMetadata>> GetPlaylistEntriesAsync(string youTubeId);
+    Task<IList<YouTubePlaylistItem>> GetPlaylistEntriesAsync(string youTubeId);
     Task<YouTubeTrackMetadata> GetTrackMetadataAsync(string youTubeId);
 }
