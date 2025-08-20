@@ -26,7 +26,7 @@ internal class YouTubeApiService : IYouTubeApiService
 
     public async Task<YouTubeTrackMetadata> GetTrackMetadataAsync(string youTubeId)
     {
-        Console.WriteLine($"Retrieving track metadata for {youTubeId}...");
+        ConsoleHelper.WriteLine($"Retrieving track metadata for {youTubeId}...", ConsoleColor.DarkGray);
 
         YouTubeTrackMetadata result = null;
 
@@ -41,7 +41,7 @@ internal class YouTubeApiService : IYouTubeApiService
 
     public async Task<IList<YouTubePlaylistItem>> GetPlaylistEntriesAsync(string youTubeId)
     {
-        Console.WriteLine($"Retrieving tracks list for playlist {youTubeId}...");
+        ConsoleHelper.WriteLine($"Retrieving tracks list for playlist {youTubeId}...", ConsoleColor.DarkGray);
 
         IList<YouTubePlaylistItem> result = null;
 
@@ -57,7 +57,7 @@ internal class YouTubeApiService : IYouTubeApiService
 
     public async Task DownloadAsync(string youTubeId)
     {
-        Console.WriteLine($"Downloading track {youTubeId}...");
+        ConsoleHelper.WriteLine($"Downloading track {youTubeId}...", ConsoleColor.Cyan);
 
         await WithThrottlingIfEnabled(ThrottleDownloads, async () =>
         {
@@ -80,10 +80,9 @@ internal class YouTubeApiService : IYouTubeApiService
 
                 if (waitTime > TimeSpan.Zero)
                 {
-                    var position = Console.GetCursorPosition();
-                    Console.WriteLine("Waiting before calling YouTube APIs again...");
+                    ConsoleHelper.Write("Rate limiting wait...  ", ConsoleColor.DarkGray);
                     await Task.Delay(waitTime);
-                    ConsoleHelper.ResetBackToPositionAndClearConsole(position);
+                    ConsoleHelper.WriteLine("Continuing.", ConsoleColor.DarkGray);
                 }
 
                 await func.Invoke();

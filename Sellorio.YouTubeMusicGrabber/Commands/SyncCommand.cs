@@ -20,6 +20,9 @@ internal class SyncCommand : ICommand
     [Option('a', "add", HelpText = "Downloads and adds the given youtube url to the manifest. Can be repeated.")]
     public IEnumerable<string> AddUris { get; set; }
 
+    [Option('s', "skip", HelpText = "Skips the first N entries of a playlist add without checking their status. Useful for grabbing large playlists in multiple runs.")]
+    public int? Skip { get; set; }
+
     public async Task ExecuteAsync(IServiceProvider serviceProvider)
     {
         if (!Directory.Exists(OutputPath))
@@ -35,7 +38,7 @@ internal class SyncCommand : ICommand
 
         foreach (var uri in AddUris)
         {
-            await syncService.ProcessAddAsync(OutputPath, manifest, uri, AddAlbums);
+            await syncService.ProcessAddAsync(OutputPath, manifest, uri, AddAlbums, Skip);
         }
     }
 }

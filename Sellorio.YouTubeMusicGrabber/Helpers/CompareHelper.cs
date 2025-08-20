@@ -9,6 +9,11 @@ internal static partial class CompareHelper
 {
     public static string ToSearchNormalisedTitle(string text)
     {
+        if (text == null)
+        {
+            return null;
+        }
+
         if (ExtractFeaturingCredit(text, out var featuringCreditIndex) != null)
         {
             var textWithoutFeaturingCredit = text.Substring(0, featuringCreditIndex);
@@ -22,6 +27,8 @@ internal static partial class CompareHelper
             switch (c)
             {
                 case '’': sb.Append('\''); continue;
+                case '“': sb.Append('\"'); continue;
+                case '”': sb.Append('\"'); continue;
                 case '？': sb.Append('?'); continue;
                 case '⁰' or '₀': sb.Append('0'); continue;
                 case '¹' or '₁': sb.Append('1'); continue;
@@ -36,8 +43,8 @@ internal static partial class CompareHelper
                 case '⁺' or '₊': sb.Append('+'); continue;
                 case '⁻' or '₋': sb.Append('-'); continue;
                 case '⁼' or '₌': sb.Append('='); continue;
-                case '⁽' or '₍': sb.Append('('); continue;
-                case '⁾' or '₎': sb.Append(')'); continue;
+                case '⁽' or '₍' or '（' or '(' or '「': continue;
+                case '⁾' or '₎' or '）' or ')' or '」': continue;
                 case 'ⁿ' or 'ₙ': sb.Append('n'); continue;
                 case 'ₐ': sb.Append('a'); continue;
                 case 'ₑ': sb.Append('e'); continue;
@@ -51,9 +58,15 @@ internal static partial class CompareHelper
                 case 'ₚ': sb.Append('p'); continue;
                 case 'ₛ': sb.Append('s'); continue;
                 case 'ₜ': sb.Append('t'); continue;
+                case '–' or '-': continue;
+                case '〜' or '~': continue;
+                case '・': continue;
+                case '/' or '\\': continue;
+                case '…': sb.Append("..."); continue;
+                case '&': sb.Append("and"); continue;
             }
 
-            if (char.IsPunctuation(c) && c is not '(' and not ')' and not ':' and not ',' and not '.')
+            if (char.IsPunctuation(c) && c is not ':' and not ',' and not '.')
             {
                 sb.Append(c);
             }

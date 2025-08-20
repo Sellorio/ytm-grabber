@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
+using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 
 namespace Sellorio.YouTubeMusicGrabber.Services;
@@ -11,34 +12,54 @@ internal class YouTubeDownloadService(IYouTubeApiService youTubeApiService) : IY
 {
     public async Task DownloadAsMp3Async(YouTubeTrackMetadata metadata, string outputFilename, int outputBitrateKbps)
     {
-        var downloadFilenameWithoutExtension = Path.GetFileNameWithoutExtension(metadata.Filename);
-
-        try
+        for (var i = 0; i < 2; i++)
         {
-            await youTubeApiService.DownloadAsync(metadata.Id);
+            var downloadFilenameWithoutExtension = Path.GetFileNameWithoutExtension(metadata.Filename);
 
-            if (File.Exists(downloadFilenameWithoutExtension + ".mp4"))
+            try
             {
-                await ConvertToMp3Async(downloadFilenameWithoutExtension + ".mp4", outputFilename, outputBitrateKbps);
+                await youTubeApiService.DownloadAsync(metadata.Id);
+
+                if (File.Exists(downloadFilenameWithoutExtension + ".mp4"))
+                {
+                    await ConvertToMp3Async(downloadFilenameWithoutExtension + ".mp4", outputFilename, outputBitrateKbps);
+                }
+                else if (File.Exists(downloadFilenameWithoutExtension + ".webm"))
+                {
+                    await ConvertToMp3Async(downloadFilenameWithoutExtension + ".webm", outputFilename, outputBitrateKbps);
+                }
+                else if (File.Exists(downloadFilenameWithoutExtension + ".mkv"))
+                {
+                    await ConvertToMp3Async(downloadFilenameWithoutExtension + ".mkv", outputFilename, outputBitrateKbps);
+                }
+                else
+                {
+                    ConsoleHelper.WriteLine("Download failed. Retrying...", ConsoleColor.DarkRed);
+                    continue;
+                }
+
+                break;
             }
-
-            if (File.Exists(downloadFilenameWithoutExtension + ".webm"))
+            finally
             {
-                await ConvertToMp3Async(downloadFilenameWithoutExtension + ".webm", outputFilename, outputBitrateKbps);
+                if (File.Exists(downloadFilenameWithoutExtension + ".mp4"))
+                {
+                    File.Delete(downloadFilenameWithoutExtension + ".mp4");
+                }
+
+                if (File.Exists(downloadFilenameWithoutExtension + ".webm"))
+                {
+                    File.Delete(downloadFilenameWithoutExtension + ".webm");
+                }
+
+                if (File.Exists(downloadFilenameWithoutExtension + ".mkv"))
+                {
+                    File.Delete(downloadFilenameWithoutExtension + ".mkv");
+                }
             }
         }
-        finally
-        {
-            if (File.Exists(downloadFilenameWithoutExtension + ".mp4"))
-            {
-                File.Delete(downloadFilenameWithoutExtension + ".mp4");
-            }
 
-            if (File.Exists(downloadFilenameWithoutExtension + ".webm"))
-            {
-                File.Delete(downloadFilenameWithoutExtension + ".webm");
-            }
-        }
+        
     }
 
     private static async Task ConvertToMp3Async(string source, string destination, int outputBitrateKbps)

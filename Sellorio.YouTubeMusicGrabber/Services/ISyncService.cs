@@ -6,6 +6,6 @@ namespace Sellorio.YouTubeMusicGrabber.Services;
 internal interface ISyncService
 {
     Task CleanUpManifestAsync(string outputPath, IList<ManifestAlbum> manifest);
-    Task ProcessAddAsync(string outputPath, IList<ManifestAlbum> manifest, string uri, bool addAlbums);
+    Task ProcessAddAsync(string outputPath, IList<ManifestAlbum> manifest, string uri, bool addAlbums, int? skip);
     Task<IList<ManifestAlbum>> ReadOrCreateManifestAsync(string outputPath);
 }

@@ -27,10 +27,10 @@ internal class YouTubeTrackMetadata
     public string AlbumId { get; set; }
 
     [JsonPropertyName("artists")]
-    public string[] Artists { get; set; }
+    public IList<string> Artists { get; set; }
 
     [JsonPropertyName("categories")]
-    public string[] Categories { get; set; }
+    public IList<string> Categories { get; set; }
 
     [JsonPropertyName("thumbnail")]
     public string ThumbnailUri { get; set; }

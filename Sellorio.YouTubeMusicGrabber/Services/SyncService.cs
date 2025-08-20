@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Sellorio.YouTubeMusicGrabber.Commands.Options;
 using Sellorio.YouTubeMusicGrabber.Exceptions;
+using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.MusicBrainz;
 using Sellorio.YouTubeMusicGrabber.Models.Sync;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
@@ -57,13 +58,13 @@ internal class SyncService(
         await SaveManifestAsync(outputPath, manifest);
     }
 
-    public async Task ProcessAddAsync(string outputPath, IList<ManifestAlbum> manifest, string uri, bool addAlbums)
+    public async Task ProcessAddAsync(string outputPath, IList<ManifestAlbum> manifest, string uri, bool addAlbums, int? skip)
     {
         try
         {
             if (youTubeUriService.TryParseAlbumId(uri, out var albumId))
             {
-                await AddAlbumAsync(outputPath, manifest, albumId, addAlbums, false);
+                await AddAlbumAsync(outputPath, manifest, albumId, addAlbums, false, skip);
             }
             else if (youTubeUriService.TryParseTrackId(uri, out var trackId))
             {
@@ -72,7 +73,7 @@ internal class SyncService(
 
                 if (addAlbums)
                 {
-                    await AddAlbumAsync(outputPath, manifest, metadata.AlbumId, false, true);
+                    await AddAlbumAsync(outputPath, manifest, metadata.AlbumId, false, true, skip);
                 }
                 else
                 {
@@ -87,11 +88,11 @@ internal class SyncService(
         }
         catch (TrackUnavailableException ex)
         {
-            Console.WriteLine(ex.ConsoleMessage);
+            ConsoleHelper.WriteLine(ex.ConsoleMessage, ConsoleColor.DarkRed);
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.ToString());
+            ConsoleHelper.WriteLine(ex.ToString(), ConsoleColor.Red);
         }
     }
 
@@ -102,57 +103,79 @@ internal class SyncService(
         return manifest;
     }
 
-    private async Task AddAlbumAsync(string outputPath, IList<ManifestAlbum> manifest, string youTubeId, bool addAlbums, bool isAlbum)
+    private async Task AddAlbumAsync(string outputPath, IList<ManifestAlbum> manifest, string youTubeId, bool addAlbums, bool isAlbum, int? skip)
     {
         var tracksList = await youTubeApiService.GetPlaylistEntriesAsync(youTubeId);
 
-        foreach (var track in tracksList)
+        if (isAlbum)
         {
-            var latestTrackId = await youTubeMetadataService.GetLatestYouTubeIdAsync(track.Id);
+            var albumManifest = manifest.FirstOrDefault(x => x.YouTubeId == youTubeId);
+
+            if (albumManifest != null && albumManifest.IsFullyDownloaded)
+            {
+                return;
+            }
+        }
+
+        foreach (var track in skip == null ? tracksList : tracksList.Skip(skip.Value))
+        {
+            if (addAlbums)
+            {
+                if (IsPartOfAFullyDownloadedAlbum(manifest, track.Id, out var albumId))
+                {
+                    ConsoleHelper.WriteLine($"Skipping already downloaded album {albumId}.", ConsoleColor.DarkGray);
+                    continue;
+                }
+            }
+            else
+            {
+                if (manifest.Any(x => x.Tracks.Any(x => x.YouTubeId == track.Id)))
+                {
+                    ConsoleHelper.WriteLine($"Skipping already downloaded track {track.Id}.", ConsoleColor.DarkGray);
+                    continue;
+                }
+            }
+
+            string latestTrackId;
+
+            try
+            {
+                latestTrackId = await youTubeMetadataService.GetLatestYouTubeIdAsync(track.Id);
+            }
+            catch (TrackUnavailableException ex)
+            {
+                ConsoleHelper.WriteLine(ex.ConsoleMessage, ConsoleColor.DarkRed);
+                continue;
+            }
 
             if (track.Title == "[Private video]")
             {
-                Console.WriteLine($"Skipping private upload {latestTrackId}.");
+                ConsoleHelper.WriteLine($"Skipping private upload {latestTrackId}.", ConsoleColor.DarkYellow);
                 continue;
             }
 
             if (addAlbums)
             {
-                YouTubeTrackMetadata metadata;
-
-                try
+                if (IsPartOfAFullyDownloadedAlbum(manifest, latestTrackId, out var albumId))
                 {
-                    metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(latestTrackId);
-                }
-                catch (TrackUnavailableException ex)
-                {
-                    Console.WriteLine(ex.ConsoleMessage);
+                    ConsoleHelper.WriteLine($"Skipping already downloaded album {albumId}.", ConsoleColor.DarkGray);
                     continue;
                 }
 
-                await AddAlbumAsync(outputPath, manifest, metadata.AlbumId, false, true);
+                var metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(latestTrackId);
+
+                await AddAlbumAsync(outputPath, manifest, metadata.AlbumId, false, true, null);
             }
             else
             {
                 if (manifest.Any(x => x.Tracks.Any(x => x.YouTubeId == latestTrackId)))
                 {
-                    Console.WriteLine($"Skipping already downloaded {latestTrackId}.");
+                    ConsoleHelper.WriteLine($"Skipping already downloaded track {latestTrackId}.", ConsoleColor.DarkGray);
                     continue;
                 }
 
                 var trackCount = tracksList.Count;
-                
-                YouTubeTrackMetadata metadata;
-
-                try
-                {
-                    metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(latestTrackId);
-                }
-                catch (TrackUnavailableException ex)
-                {
-                    Console.WriteLine(ex.ConsoleMessage);
-                    continue;
-                }
+                var metadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(latestTrackId);
 
                 if (!isAlbum)
                 {
@@ -161,6 +184,18 @@ internal class SyncService(
                 }
 
                 await AddTrackAsync(outputPath, manifest, metadata, trackCount);
+            }
+        }
+
+        if (isAlbum)
+        {
+            var albumManifest = manifest.FirstOrDefault(x => x.YouTubeId == youTubeId);
+
+            // album manifest will be null if the album was skipped (e.g. cannot match metadata)
+            if (albumManifest != null)
+            {
+                albumManifest.IsFullyDownloaded = true;
+                await SaveManifestAsync(outputPath, manifest);
             }
         }
     }
@@ -176,6 +211,11 @@ internal class SyncService(
                 metadata.ReleaseYear,
                 albumTrackCount,
                 promptForIdIfNotFound: true);
+
+        if (musicBrainzMetadata == null)
+        {
+            return;
+        }
 
         var outputFilename = GetTrackOutputFilename(metadata, musicBrainzMetadata.Release, musicBrainzMetadata.Track);
         var absoluteOutputFilename = Path.GetFullPath(Path.Combine(outputPath, outputFilename));
@@ -199,7 +239,7 @@ internal class SyncService(
             throw;
         }
 
-        Console.WriteLine($"Added {metadata.Id} ({musicBrainzMetadata.Recording.Title}) successfully!");
+        ConsoleHelper.WriteLine($"Added {metadata.Id} ({musicBrainzMetadata.Track.Title}) successfully!", ConsoleColor.Green);
     }
 
     private async Task AddTrackToManifestAsync(string outputPath, string outputFilename, IList<ManifestAlbum> manifest, YouTubeTrackMetadata metadata, RecordingMatch musicBrainzMetadata)
@@ -227,6 +267,13 @@ internal class SyncService(
         });
 
         await SaveManifestAsync(outputPath, manifest);
+    }
+
+    private static bool IsPartOfAFullyDownloadedAlbum(IList<ManifestAlbum> manifest, string trackYouTubeId, out string albumId)
+    {
+        var albumManifest = manifest.FirstOrDefault(x => x.Tracks.Any(x => x.YouTubeId == trackYouTubeId));
+        albumId = albumManifest?.YouTubeId;
+        return albumManifest?.IsFullyDownloaded == true;
     }
 
     private static async Task SaveManifestAsync(string outputPath, IList<ManifestAlbum> manifest)

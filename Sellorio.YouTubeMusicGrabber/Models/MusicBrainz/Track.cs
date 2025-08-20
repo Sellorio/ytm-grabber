@@ -8,4 +8,5 @@ internal class Track
     public string Number { get; set; }
     public string Title { get; set; }
     public int? Length { get; set; }
+    public TrackRecording Recording { get; set; }
 }
