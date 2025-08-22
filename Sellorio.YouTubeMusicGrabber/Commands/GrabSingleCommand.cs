@@ -4,11 +4,11 @@ using System.Threading.Tasks;
 using CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Sellorio.YouTubeMusicGrabber.Commands.Options;
-using Sellorio.YouTubeMusicGrabber.Services;
+using Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 namespace Sellorio.YouTubeMusicGrabber.Commands;
 
-[Verb("grab-single", aliases: ["gs"], HelpText = "Grabs the audio of a single youtube video.")]
+[Verb("grab", HelpText = "Grabs the audio of a single youtube video/album/playlist.")]
 internal class GrabSingleCommand : ICommand
 {
     [Value(0, Required = true, HelpText = "YouTube/YouTube Music Uri.")]
@@ -27,42 +27,48 @@ internal class GrabSingleCommand : ICommand
             throw new InvalidOperationException();
         }
 
-        var outputFilenameAbsolute = Path.GetFullPath(OutputFilename);
-
-        var musicBrainzService = serviceProvider.GetRequiredService<IMusicBrainzService>();
         var youTubeDownloadService = serviceProvider.GetRequiredService<IYouTubeDownloadService>();
-        var youTubeApiService = serviceProvider.GetRequiredService<IYouTubeApiService>();
-        var youTubeMetadataService = serviceProvider.GetRequiredService<IYouTubeMetadataService>();
         var youTubeUriService = serviceProvider.GetRequiredService<IYouTubeUriService>();
-        var fileMetadataService = serviceProvider.GetRequiredService<IFileMetadataService>();
+        var youTubeFileTagsService = serviceProvider.GetRequiredService<IYouTubeFileTagsService>();
+        var youTubeAlbumMetadataService = serviceProvider.GetRequiredService<IYouTubeAlbumMetadataService>();
+        var youTubeTrackMetadataService = serviceProvider.GetRequiredService<IYouTubeTrackMetadataService>();
 
-        if (!youTubeUriService.TryParseTrackId(Uri, out var youTubeId))
+        if (youTubeUriService.TryParseTrackId(Uri, out var youTubeId))
         {
-            throw new ArgumentException("Invalid youtube video/track uri.");
+            await GrabTrackAsync(youTubeTrackMetadataService, youTubeAlbumMetadataService, youTubeDownloadService, youTubeFileTagsService, youTubeId);
+        }
+        else if (youTubeUriService.TryParseAlbumId(Uri, out var albumId))
+        {
+            throw new NotImplementedException();
+        }
+        else
+        {
+            throw new ArgumentException("The given URI does not link to a video/album/playlist.");
         }
 
-        var latestYouTubeId = await youTubeMetadataService.GetLatestYouTubeIdAsync(youTubeId);
-        var youTubeMetadata = await youTubeMetadataService.GetEnrichedTrackMetadataAsync(latestYouTubeId);
-        var albumTracks = await youTubeApiService.GetPlaylistEntriesAsync(youTubeMetadata.AlbumId);
+        
+    }
 
-        var musicBrainzMetadata =
-            await musicBrainzService.FindRecordingAsync(
-                youTubeMetadata.Album,
-                youTubeMetadata.Artists,
-                [youTubeMetadata.Title, youTubeMetadata.AlternateTitle],
-                youTubeMetadata.ReleaseDate,
-                youTubeMetadata.ReleaseYear,
-                albumTracks.Count);
+    private async Task GrabTrackAsync(
+        IYouTubeTrackMetadataService youTubeTrackMetadataService,
+        IYouTubeAlbumMetadataService youTubeAlbumMetadataService,
+        IYouTubeDownloadService youTubeDownloadService,
+        IYouTubeFileTagsService youTubeFileTagsService,
+        string youTubeId)
+    {
+        var latestYouTubeId = await youTubeTrackMetadataService.GetLatestYouTubeIdAsync(youTubeId);
+        var trackMetadata = await youTubeTrackMetadataService.GetMetadataAsync(latestYouTubeId);
+        var albumMetadata = await youTubeAlbumMetadataService.GetMetadataAsync(trackMetadata.AlbumId);
 
-        await youTubeDownloadService.DownloadAsMp3Async(youTubeMetadata, outputFilenameAbsolute, (int)(Quality ?? Options.Quality.High));
+        await youTubeDownloadService.DownloadAsMp3Async(trackMetadata, OutputFilename, (int)(Quality ?? Options.Quality.High));
 
         try
         {
-            await fileMetadataService.UpdateFileMetadataAsync(outputFilenameAbsolute, youTubeMetadata, musicBrainzMetadata);
+            await youTubeFileTagsService.UpdateFileMetadataAsync(OutputFilename, albumMetadata, trackMetadata);
         }
         catch
         {
-            File.Delete(outputFilenameAbsolute);
+            File.Delete(OutputFilename);
             throw;
         }
     }

@@ -2,9 +2,9 @@
 using System.Threading.Tasks;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 
-namespace Sellorio.YouTubeMusicGrabber.Services;
+namespace Sellorio.YouTubeMusicGrabber.Services.YouTube.Integrations;
 
-internal interface IYouTubeApiService
+internal interface IYouTubeDlpService
 {
     Task DownloadAsync(string youTubeId);
     Task<IList<YouTubePlaylistItem>> GetPlaylistEntriesAsync(string youTubeId);

@@ -6,31 +6,23 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using Sellorio.YouTubeMusicGrabber.Exceptions;
 using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
+using Sellorio.YouTubeMusicGrabber.Services.Common;
 
-namespace Sellorio.YouTubeMusicGrabber.Services;
+namespace Sellorio.YouTubeMusicGrabber.Services.YouTube.Integrations;
 
-internal class YouTubeApiService : IYouTubeApiService
+internal class YouTubeDlpService(IRateLimitService rateLimitService) : IYouTubeDlpService
 {
-    private const int ThrottleTime = 10_000;
-    private const bool ThrottleDownloads = true;
-    private const bool ThrottleTrackInfo = true;
-    private const bool ThrottlePlaylistInfo = false;
-
-    private readonly SemaphoreSlim _semaphore = new(1);
-    private DateTime? _lastThrottledCall;
-
     public async Task<YouTubeTrackMetadata> GetTrackMetadataAsync(string youTubeId)
     {
         ConsoleHelper.WriteLine($"Retrieving track metadata for {youTubeId}...", ConsoleColor.DarkGray);
 
         YouTubeTrackMetadata result = null;
 
-        await WithThrottlingIfEnabled(ThrottleTrackInfo, async () =>
+        await rateLimitService.WithRateLimit(RateLimits.DlpTrackInfo, async () =>
         {
             var json = await InvokeYtDlpAsync(youTubeId, $"--cookies cookies.txt --print-json --skip-download \"https://music.youtube.com/watch?v={youTubeId}\"");
             result = JsonSerializer.Deserialize<YouTubeTrackMetadata>(json);
@@ -45,7 +37,7 @@ internal class YouTubeApiService : IYouTubeApiService
 
         IList<YouTubePlaylistItem> result = null;
 
-        await WithThrottlingIfEnabled(ThrottlePlaylistInfo, async () =>
+        await rateLimitService.WithRateLimit(RateLimits.DlpPlaylistInfo, async () =>
         {
             var output = await InvokeYtDlpAsync(youTubeId, $"--cookies cookies.txt --flat-playlist --print-json --skip-download \"https://music.youtube.com/playlist?list={youTubeId}\"");
             var jsons = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -59,45 +51,10 @@ internal class YouTubeApiService : IYouTubeApiService
     {
         ConsoleHelper.WriteLine($"Downloading track {youTubeId}...", ConsoleColor.Cyan);
 
-        await WithThrottlingIfEnabled(ThrottleDownloads, async () =>
+        await rateLimitService.WithRateLimit([RateLimits.DlpDownload, RateLimits.DlpTrackInfo], async () =>
         {
             await InvokeYtDlpAsync(youTubeId, $"--cookies cookies.txt --ffmpeg-location . \"https://music.youtube.com/watch?v={youTubeId}\"");
         });
-    }
-
-    private async Task WithThrottlingIfEnabled(bool shouldThrottle, Func<Task> func)
-    {
-        if (shouldThrottle)
-        {
-            await _semaphore.WaitAsync();
-
-            try
-            {
-                var waitTime =
-                    _lastThrottledCall != null
-                        ? _lastThrottledCall.Value.AddMilliseconds(ThrottleTime) - DateTime.UtcNow
-                        : TimeSpan.Zero;
-
-                if (waitTime > TimeSpan.Zero)
-                {
-                    ConsoleHelper.Write("Rate limiting wait...  ", ConsoleColor.DarkGray);
-                    await Task.Delay(waitTime);
-                    ConsoleHelper.WriteLine("Continuing.", ConsoleColor.DarkGray);
-                }
-
-                await func.Invoke();
-
-                _lastThrottledCall = DateTime.UtcNow;
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-        else
-        {
-            await func.Invoke();
-        }
     }
 
     private static async Task<string> InvokeYtDlpAsync(string youTubeId, string arguments)

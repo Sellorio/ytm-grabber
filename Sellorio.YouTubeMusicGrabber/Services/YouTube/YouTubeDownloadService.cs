@@ -5,10 +5,11 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
+using Sellorio.YouTubeMusicGrabber.Services.YouTube.Integrations;
 
-namespace Sellorio.YouTubeMusicGrabber.Services;
+namespace Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
-internal class YouTubeDownloadService(IYouTubeApiService youTubeApiService) : IYouTubeDownloadService
+internal class YouTubeDownloadService(IYouTubeDlpService youTubeDlpService) : IYouTubeDownloadService
 {
     public async Task DownloadAsMp3Async(YouTubeTrackMetadata metadata, string outputFilename, int outputBitrateKbps)
     {
@@ -18,7 +19,7 @@ internal class YouTubeDownloadService(IYouTubeApiService youTubeApiService) : IY
 
             try
             {
-                await youTubeApiService.DownloadAsync(metadata.Id);
+                await youTubeDlpService.DownloadAsync(metadata.Id);
 
                 if (File.Exists(downloadFilenameWithoutExtension + ".mp4"))
                 {
@@ -59,7 +60,7 @@ internal class YouTubeDownloadService(IYouTubeApiService youTubeApiService) : IY
             }
         }
 
-        
+
     }
 
     private static async Task ConvertToMp3Async(string source, string destination, int outputBitrateKbps)

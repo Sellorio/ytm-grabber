@@ -1,4 +1,4 @@
-﻿namespace Sellorio.YouTubeMusicGrabber.Services;
+﻿namespace Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 internal interface IYouTubeUriService
 {
