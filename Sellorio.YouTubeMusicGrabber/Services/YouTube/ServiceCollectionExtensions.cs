@@ -13,7 +13,7 @@ internal static class ServiceCollectionExtensions
     public static IServiceCollection AddYouTubeServices(this IServiceCollection services, RateLimitService rateLimitService)
     {
         rateLimitService.ConfigureRateLimit(RateLimits.DlpDownload, TimeSpan.FromSeconds(10));
-        rateLimitService.ConfigureRateLimit(RateLimits.DlpTrackInfo, TimeSpan.FromSeconds(5));
+        rateLimitService.ConfigureRateLimit(RateLimits.DlpTrackInfo, TimeSpan.FromSeconds(10));
         rateLimitService.ConfigureRateLimit(RateLimits.DlpPlaylistInfo, TimeSpan.FromMilliseconds(500));
         rateLimitService.ConfigureRateLimit(RateLimits.XHR, TimeSpan.FromMilliseconds(500));
         rateLimitService.ConfigureRateLimit(RateLimits.Page, TimeSpan.FromMilliseconds(500));

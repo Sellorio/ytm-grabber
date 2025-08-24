@@ -8,7 +8,7 @@ namespace Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 internal class YouTubeFileTagsService(HttpClient httpClient) : IYouTubeFileTagsService
 {
-    public async Task UpdateFileMetadataAsync(string filename, YouTubeAlbumMetadata albumMetadata, YouTubeTrackMetadata trackMetadata)
+    public async Task UpdateFileMetadataAsync(string filename, YouTubeAlbumMetadata albumMetadata, YouTubeTrackMetadata trackMetadata, int trackNumber)
     {
         var bestThumbnailPreferenceScore =
             trackMetadata.Thumbnails != null && trackMetadata.Thumbnails.Any()
@@ -36,8 +36,7 @@ internal class YouTubeFileTagsService(HttpClient httpClient) : IYouTubeFileTagsS
         tag.AlbumArtists = albumMetadata.Artists;
         tag.Performers = trackMetadata.Artists.ToArray();
         tag.Year = (uint)(albumMetadata.ReleaseYear ?? default);
-        _ = uint.TryParse(trackMetadata.Number, out var trackNumber);
-        tag.Track = trackNumber;
+        tag.Track = (uint)trackNumber;
         tag.TrackCount = (uint)albumMetadata.Tracks.Count;
 
         if (thumbnailBytes != null)

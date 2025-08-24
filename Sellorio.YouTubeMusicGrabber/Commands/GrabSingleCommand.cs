@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using CommandLine;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,12 +60,13 @@ internal class GrabSingleCommand : ICommand
         var latestYouTubeId = await youTubeTrackMetadataService.GetLatestYouTubeIdAsync(youTubeId);
         var trackMetadata = await youTubeTrackMetadataService.GetMetadataAsync(latestYouTubeId);
         var albumMetadata = await youTubeAlbumMetadataService.GetMetadataAsync(trackMetadata.AlbumId);
+        var trackNumber = albumMetadata.Tracks.Index().First(x => x.Item.Id == latestYouTubeId).Index + 1;
 
         await youTubeDownloadService.DownloadAsMp3Async(trackMetadata, OutputFilename, (int)(Quality ?? Options.Quality.High));
 
         try
         {
-            await youTubeFileTagsService.UpdateFileMetadataAsync(OutputFilename, albumMetadata, trackMetadata);
+            await youTubeFileTagsService.UpdateFileMetadataAsync(OutputFilename, albumMetadata, trackMetadata, trackNumber);
         }
         catch
         {

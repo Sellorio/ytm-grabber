@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Sellorio.YouTubeMusicGrabber.Exceptions;
@@ -38,14 +39,8 @@ internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlp
             for (var i = 0; i < 5; i++)
             {
                 var pageData = await youTubePageService.GetPageInitialDataAsync("https://music.youtube.com/watch?v=" + youTubeId);
-                //var response = await httpClient.GetAsync("https://music.youtube.com/watch?v=" + youTubeId);
-                //response.EnsureSuccessStatusCode();
-                //var responseText = await response.Content.ReadAsStringAsync();
-                //var videoId = Regex.Match(responseText, @$"\\""videoId\\"":\\""({Constants.YouTubeIdRegex})\\""").Groups[1].Value;
-
-                _ = "do nothing";
-
-                var videoId = (string)null;
+                var initialEndpoint = pageData[0].Get<string>("INITIAL_ENDPOINT");
+                var videoId = JsonNavigator.FromString(initialEndpoint)["watchEndpoint"].Get<string>("videoId");
 
                 if (videoId == youTubeId)
                 {
@@ -106,7 +101,8 @@ internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlp
             var title1 = trackTitle.Substring(0, titleSeparators[0].Index);
             var title2 = trackTitle.Substring(titleSeparators[0].Index + 3);
 
-            if (title1 == metadata.Title || title1 == metadata.AlternateTitle)
+            if (title1 == metadata.Title || title1 == metadata.AlternateTitle ||
+                title2 == metadata.Title || title2 == metadata.AlternateTitle)
             {
                 metadata.Title = title1;
                 metadata.AlternateTitle = title2;
@@ -158,28 +154,19 @@ internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlp
     private async Task<string> GetAlbumIdAsync(string browseId)
     {
         var browsePageData = await youTubePageService.GetPageInitialDataAsync($"https://music.youtube.com/browse/{browseId}");
+        var infoPage = browsePageData[1];
+        var contents = infoPage["contents"];
 
-        _ = "do nothing";
+        if (contents == null)
+        {
+            throw new InvalidOperationException("Unable to get album id. You may need to refresh your cookies.txt.");
+        }
 
-        return null;
+        var playlistParent =
+            contents["twoColumnBrowseResultsRenderer"]["secondaryContents"]["musicResponsiveListItemRenderer"]?["overlay"]["musicItemThumbnailOverlayRenderer"]["content"]["musicPlayButtonRenderer"]["playNavigationEndpoint"]["watchEndpoint"] ??
+            contents["twoColumnBrowseResultsRenderer"]["secondaryContents"]["sectionListRenderer"]["contents"][0]["musicShelfRenderer"]["contents"].NthFromLast(0)["musicResponsiveListItemRenderer"]["overlay"]["musicItemThumbnailOverlayRenderer"]["content"]["musicPlayButtonRenderer"]["playNavigationEndpoint"]["watchEndpoint"];
 
-        //var response = await httpClient.GetAsync($"https://music.youtube.com/browse/{browseId}");
-
-        //if (!response.IsSuccessStatusCode)
-        //{
-        //    var responseBody = await response.Content.ReadAsStringAsync();
-        //    throw new InvalidOperationException("Failed to get playlist id.\r\n" + responseBody);
-        //}
-
-        //var responseText = await response.Content.ReadAsStringAsync();
-
-        //var albumIdMatch = Regex.Match(responseText, @$"\\x22playlistId\\x22:\\x22(OLAK5uy_{Constants.YouTubeIdRegex})\\x22");
-
-        //if (!albumIdMatch.Success)
-        //{
-        //    throw new InvalidOperationException("Unable to find album id for track.");
-        //}
-
-        //return albumIdMatch.Groups[1].Value;
+        var playlistId = playlistParent.Get<string>("playlistId");
+        return playlistId;
     }
 }

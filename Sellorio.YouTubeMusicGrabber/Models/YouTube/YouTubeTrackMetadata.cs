@@ -51,9 +51,6 @@ internal class YouTubeTrackMetadata
     public string Filename { get; set; }
 
     [JsonIgnore]
-    public string Number { get; set; }
-
-    [JsonIgnore]
     public DateOnly? ReleaseDate =>
         ReleaseDateYYYYMMDD == null
             ? null

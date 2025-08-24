@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 
@@ -19,19 +20,29 @@ namespace Sellorio.YouTubeMusicGrabber.Helpers
             _element = element;
         }
 
-        public JsonNavigator this[string propertyKey] => new(_element.GetProperty(propertyKey));
-        public JsonNavigator this[int arrayIndex] => new(_element[arrayIndex]);
+        public JsonNavigator this[string propertyKey] => _element.ValueKind != JsonValueKind.Array && _element.TryGetProperty(propertyKey, out var el) ? new(el) : null;
+        public JsonNavigator this[int arrayIndex] => _element.ValueKind == JsonValueKind.Array && ArrayLength > arrayIndex ? new(_element[arrayIndex]) : null;
 
         public int ArrayLength => _arrayLength ?? (_arrayLength = _element.GetArrayLength()).Value;
 
         public JsonNavigator Nth(int arrayIndex)
         {
-            return new(_element[arrayIndex]);
+            return this[arrayIndex];
         }
 
         public JsonNavigator NthFromLast(int arrayIndex)
         {
-            return new(_element[_element.GetArrayLength() - arrayIndex]);
+            return this[_element.GetArrayLength() - arrayIndex - 1];
+        }
+
+        public IEnumerable<TValue> Select<TValue>(Func<JsonNavigator, TValue> selector)
+        {
+            return _element.EnumerateArray().Select(x => selector.Invoke(new JsonNavigator(x)));
+        }
+
+        public IEnumerable<JsonNavigator> Where<TValue>(Func<JsonNavigator, bool> selector)
+        {
+            return _element.EnumerateArray().Select(x => new JsonNavigator(x)).Where(selector.Invoke);
         }
 
         public TValue Get<TValue>(string propertyKey)
@@ -42,6 +53,12 @@ namespace Sellorio.YouTubeMusicGrabber.Helpers
         public TValue Get<TValue>(int arrayIndex)
         {
             return (TValue)Get(_element[arrayIndex], typeof(TValue));
+        }
+
+        public static JsonNavigator FromString(string json)
+        {
+            var document = JsonDocument.Parse(json);
+            return new(document.RootElement);
         }
 
         private static object Get(JsonElement element, Type targetType)
