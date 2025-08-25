@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -164,7 +165,7 @@ internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlp
 
         var playlistParent =
             contents["twoColumnBrowseResultsRenderer"]["secondaryContents"]["musicResponsiveListItemRenderer"]?["overlay"]["musicItemThumbnailOverlayRenderer"]["content"]["musicPlayButtonRenderer"]["playNavigationEndpoint"]["watchEndpoint"] ??
-            contents["twoColumnBrowseResultsRenderer"]["secondaryContents"]["sectionListRenderer"]["contents"][0]["musicShelfRenderer"]["contents"].NthFromLast(0)["musicResponsiveListItemRenderer"]["overlay"]["musicItemThumbnailOverlayRenderer"]["content"]["musicPlayButtonRenderer"]["playNavigationEndpoint"]["watchEndpoint"];
+            contents["twoColumnBrowseResultsRenderer"]["secondaryContents"]["sectionListRenderer"]["contents"][0]["musicShelfRenderer"]["contents"].Select(x => x["musicResponsiveListItemRenderer"]["overlay"]["musicItemThumbnailOverlayRenderer"]["content"]["musicPlayButtonRenderer"]["playNavigationEndpoint"]).FirstOrDefault(x => x != null)["watchEndpoint"];
 
         var playlistId = playlistParent.Get<string>("playlistId");
         return playlistId;

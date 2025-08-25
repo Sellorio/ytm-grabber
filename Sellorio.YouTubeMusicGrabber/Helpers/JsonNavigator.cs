@@ -40,7 +40,7 @@ namespace Sellorio.YouTubeMusicGrabber.Helpers
             return _element.EnumerateArray().Select(x => selector.Invoke(new JsonNavigator(x)));
         }
 
-        public IEnumerable<JsonNavigator> Where<TValue>(Func<JsonNavigator, bool> selector)
+        public IEnumerable<JsonNavigator> Where(Func<JsonNavigator, bool> selector)
         {
             return _element.EnumerateArray().Select(x => new JsonNavigator(x)).Where(selector.Invoke);
         }
