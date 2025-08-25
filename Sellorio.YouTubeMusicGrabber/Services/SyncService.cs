@@ -75,13 +75,16 @@ internal class SyncService(
 
                 if (addAlbums)
                 {
-                    await AddAlbumAsync(outputPath, manifest, trackMetadata.AlbumId, false, true, skip);
+                    await AddAlbumAsync(outputPath, manifest, trackMetadata.MusicMetadata.AlbumId, false, true, skip);
                 }
                 else
                 {
-                    var albumMetadata = await youTubeAlbumMetadataService.GetMetadataAsync(trackMetadata.AlbumId);
-                    var trackNumber = albumMetadata.Tracks.Index().First(x => x.Item.Id == latestTrackId).Index + 1;
-                    await AddTrackAsync(outputPath, manifest, albumMetadata, trackMetadata, trackNumber);
+                    var albumMetadata =
+                        trackMetadata.MusicMetadata.AlbumId != null
+                            ? await youTubeAlbumMetadataService.GetMetadataAsync(trackMetadata.MusicMetadata.AlbumId)
+                            : null;
+
+                    await AddTrackAsync(outputPath, manifest, albumMetadata, trackMetadata);
                 }
             }
             else
@@ -120,12 +123,8 @@ internal class SyncService(
             }
         }
 
-        var trackNumber = 0;
-
         foreach (var track in skip == null ? albumMetadata.Tracks : albumMetadata.Tracks.Skip(skip.Value))
         {
-            trackNumber++;
-
             if (addAlbums)
             {
                 if (IsPartOfAFullyDownloadedAlbum(manifest, track.Id, out var albumId))
@@ -171,7 +170,7 @@ internal class SyncService(
 
                 var metadata = await youTubeTrackMetadataService.GetMetadataAsync(latestTrackId);
 
-                await AddAlbumAsync(outputPath, manifest, metadata.AlbumId, false, true, null);
+                await AddAlbumAsync(outputPath, manifest, metadata.MusicMetadata.AlbumId, false, true, null);
             }
             else
             {
@@ -185,10 +184,10 @@ internal class SyncService(
 
                 if (!isAlbum)
                 {
-                    var albumTracksList = await youTubeDlpService.GetPlaylistEntriesAsync(trackMetadata.AlbumId);
+                    var albumTracksList = await youTubeDlpService.GetPlaylistEntriesAsync(trackMetadata.MusicMetadata.AlbumId);
                 }
 
-                await AddTrackAsync(outputPath, manifest, albumMetadata, trackMetadata, trackNumber);
+                await AddTrackAsync(outputPath, manifest, albumMetadata, trackMetadata);
             }
         }
 
@@ -205,9 +204,9 @@ internal class SyncService(
         }
     }
 
-    private async Task AddTrackAsync(string outputPath, IList<ManifestAlbum> manifest, YouTubeAlbumMetadata albumMetadata, YouTubeTrackMetadata trackMetadata, int trackNumber)
+    private async Task AddTrackAsync(string outputPath, IList<ManifestAlbum> manifest, YouTubeAlbumMetadata albumMetadata, YouTubeVideoMetadata trackMetadata)
     {
-        var outputFilename = GetTrackOutputFilename(manifest, albumMetadata, trackMetadata, trackNumber);
+        var outputFilename = GetTrackOutputFilename(manifest, albumMetadata, trackMetadata);
         var absoluteOutputFilename = Path.GetFullPath(Path.Combine(outputPath, outputFilename));
         var directoryPath = Path.GetDirectoryName(absoluteOutputFilename);
 
@@ -216,14 +215,11 @@ internal class SyncService(
             Directory.CreateDirectory(directoryPath);
         }
 
-        if (!await MigrationHelper.TryImportFromOldMusicAsync(trackMetadata, absoluteOutputFilename))
-        {
-            await youTubeDownloadService.DownloadAsMp3Async(trackMetadata, absoluteOutputFilename, (int)Quality.High);
-        }
+        await youTubeDownloadService.DownloadAsMp3Async(trackMetadata, absoluteOutputFilename, (int)Quality.High);
 
         try
         {
-            await fileMetadataService.UpdateFileMetadataAsync(absoluteOutputFilename, albumMetadata, trackMetadata, trackNumber);
+            await fileMetadataService.UpdateFileMetadataAsync(absoluteOutputFilename, albumMetadata, trackMetadata);
             await AddTrackToManifestAsync(outputPath, outputFilename, manifest, albumMetadata, trackMetadata);
         }
         catch
@@ -232,20 +228,21 @@ internal class SyncService(
             throw;
         }
 
-        ConsoleHelper.WriteLine($"Added {trackMetadata.Id} ({trackMetadata.Title}) successfully!", ConsoleColor.Green);
+        ConsoleHelper.WriteLine($"Added {trackMetadata.Id} ({trackMetadata.MusicMetadata.Title}) successfully!", ConsoleColor.Green);
     }
 
-    private static async Task AddTrackToManifestAsync(string outputPath, string outputFilename, IList<ManifestAlbum> manifest, YouTubeAlbumMetadata albumMetadata, YouTubeTrackMetadata trackMetadata)
+    private static async Task AddTrackToManifestAsync(string outputPath, string outputFilename, IList<ManifestAlbum> manifest, YouTubeAlbumMetadata albumMetadata, YouTubeVideoMetadata trackMetadata)
     {
-        var album = manifest.FirstOrDefault(x => x.YouTubeId == albumMetadata.Id);
+        var folderName = Path.GetFileName(Path.GetDirectoryName(outputFilename));
+        var album = manifest.FirstOrDefault(x => x.YouTubeId == albumMetadata?.Id && x.FolderName == folderName);
 
         if (album == null)
         {
             album = new ManifestAlbum
             {
-                FolderName = Path.GetFileName(Path.GetDirectoryName(outputFilename)),
+                FolderName = folderName,
                 Tracks = [],
-                YouTubeId = trackMetadata.AlbumId
+                YouTubeId = albumMetadata?.Id
             };
 
             manifest.Add(album);
@@ -273,15 +270,18 @@ internal class SyncService(
         await File.WriteAllTextAsync(manifestFilename, _yamlSerializer.Serialize(manifest));
     }
 
-    private static string GetTrackOutputFilename(IList<ManifestAlbum> manifest, YouTubeAlbumMetadata albumMetadata, YouTubeTrackMetadata trackMetadata, int trackNumber)
+    private static string GetTrackOutputFilename(IList<ManifestAlbum> manifest, YouTubeAlbumMetadata albumMetadata, YouTubeVideoMetadata trackMetadata)
     {
-        var safeAlbumName = RemoveUnsafeFilenameCharacters(albumMetadata.Title);
-        var safeTitle = RemoveUnsafeFilenameCharacters(trackMetadata.Title);
+        var safeAlbumName = RemoveUnsafeFilenameCharacters(albumMetadata?.Title ?? trackMetadata.MusicMetadata.Album);
+        var safeTitle = RemoveUnsafeFilenameCharacters(trackMetadata.MusicMetadata.Title);
 
-        var folderName = albumMetadata.ReleaseYear == null ? safeAlbumName : safeAlbumName + " (" + albumMetadata.ReleaseYear + ")";
-        var fileName = trackNumber + " - " + safeTitle + ".mp3";
+        var releaseYear = albumMetadata?.ReleaseYear ?? trackMetadata.MusicMetadata.ReleaseYear;
 
-        if (manifest.Any(x => x.YouTubeId != albumMetadata.Id && x.FolderName.Equals(folderName, StringComparison.OrdinalIgnoreCase)))
+        var folderName = releaseYear == null ? safeAlbumName : safeAlbumName + " (" + releaseYear + ")";
+        var fileName = trackMetadata.MusicMetadata.TrackNumber + " - " + safeTitle + ".mp3";
+
+        if (albumMetadata != null &&
+            manifest.Any(x => x.YouTubeId != albumMetadata.Id && x.FolderName.Equals(folderName, StringComparison.OrdinalIgnoreCase)))
         {
             folderName += " (" + albumMetadata.Id + ")";
         }

@@ -6,12 +6,20 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Sellorio.YouTubeMusicGrabber.Exceptions;
 using Sellorio.YouTubeMusicGrabber.Helpers;
+using Sellorio.YouTubeMusicGrabber.Models.MusicBrainz;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
+using Sellorio.YouTubeMusicGrabber.Services.CoverArtArchive;
 using Sellorio.YouTubeMusicGrabber.Services.YouTube.Integrations;
 
 namespace Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
-internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlpService, IYouTubeXhrService youTubeXhrService, IYouTubePageService youTubePageService) : IYouTubeTrackMetadataService
+internal partial class YouTubeTrackMetadataService(
+    IYouTubeDlpService youTubeDlpService,
+    IYouTubeXhrService youTubeXhrService,
+    IYouTubePageService youTubePageService,
+    IYouTubeAlbumMetadataService youTubeAlbumMetadataService,
+    IMusicBrainzService musicBrainzService,
+    ICoverArtArchiveService coverArtArchiveService) : IYouTubeTrackMetadataService
 {
     public async Task<string> GetLatestYouTubeIdAsync(string youTubeId)
     {
@@ -61,10 +69,49 @@ internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlp
         return youTubeId;
     }
 
-    public async Task<YouTubeTrackMetadata> GetMetadataAsync(string youTubeId)
+    public async Task<YouTubeVideoMetadata> GetMetadataAsync(string youTubeId)
     {
-        var metadata = await youTubeDlpService.GetTrackMetadataAsync(youTubeId);
+        var metadataDto = await youTubeDlpService.GetTrackMetadataAsync(youTubeId);
         var nextData = await youTubeXhrService.GetNextAsync(youTubeId);
+
+        var bestThumbnailPreferenceScore =
+            metadataDto.Thumbnails != null && metadataDto.Thumbnails.Any()
+                ? metadataDto.Thumbnails.Min(x => x.Preference)
+                : 0;
+
+        var preferredThumbnail =
+            metadataDto.Thumbnails
+                .Where(x => x.Preference == bestThumbnailPreferenceScore && x.Width == x.Height && x.Width < 500)
+                .OrderByDescending(x => x.Width)
+                .FirstOrDefault();
+
+        var result = new YouTubeVideoMetadata
+        {
+            MusicMetadata = metadataDto.Album == null ? null : new()
+            {
+                Title = metadataDto.Title,
+                Album = metadataDto.Album,
+                Artists = metadataDto.Artists,
+                AlternateTitle = metadataDto.AlternateTitle,
+                ReleaseDate =
+                metadataDto.ReleaseDateYYYYMMDD == null
+                    ? null
+                    : new(int.Parse(metadataDto.ReleaseDateYYYYMMDD.AsSpan(0, 4)),
+                          int.Parse(metadataDto.ReleaseDateYYYYMMDD.AsSpan(4, 2)),
+                          int.Parse(metadataDto.ReleaseDateYYYYMMDD.AsSpan(6, 2))),
+                ReleaseYear = metadataDto.ReleaseYear,
+                AlbumArtUrl = preferredThumbnail?.Url
+            },
+            Id = metadataDto.Id,
+            Thumbnails = metadataDto.Thumbnails,
+            Filename = metadataDto.Filename
+        };
+
+        if (result.MusicMetadata == null)
+        {
+            result.MusicMetadata = await PromptUserForMusicMetadataAsync(youTubeId);
+            return result;
+        }
 
         JsonNavigator trackPlayerPanelElement;
 
@@ -102,11 +149,11 @@ internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlp
             var title1 = trackTitle.Substring(0, titleSeparators[0].Index);
             var title2 = trackTitle.Substring(titleSeparators[0].Index + 3);
 
-            if (title1 == metadata.Title || title1 == metadata.AlternateTitle ||
-                title2 == metadata.Title || title2 == metadata.AlternateTitle)
+            if (title1 == metadataDto.Title || title1 == metadataDto.AlternateTitle ||
+                title2 == metadataDto.Title || title2 == metadataDto.AlternateTitle)
             {
-                metadata.Title = title1;
-                metadata.AlternateTitle = title2;
+                result.MusicMetadata.Title = title1;
+                result.MusicMetadata.AlternateTitle = title2;
             }
         }
 
@@ -121,14 +168,14 @@ internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlp
             throw;
         }
 
-        if (metadata.Artists == null)
+        if (result.MusicMetadata.Artists == null)
         {
-            metadata.Artists = [];
+            result.MusicMetadata.Artists = [];
 
             for (var i = 0; i < byLineSections.ArrayLength - 3; i += 2)
             {
                 var artistName = byLineSections[i].Get<string>("text");
-                metadata.Artists.Add(artistName);
+                result.MusicMetadata.Artists.Add(artistName);
             }
         }
 
@@ -146,10 +193,15 @@ internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlp
             throw;
         }
 
-        metadata.Album = albumName;
-        metadata.AlbumId = await GetAlbumIdAsync(albumBrowseId);
+        result.MusicMetadata.Album = albumName;
+        result.MusicMetadata.AlbumId = await GetAlbumIdAsync(albumBrowseId);
 
-        return metadata;
+        var albumMetadata = await youTubeAlbumMetadataService.GetMetadataAsync(result.MusicMetadata.AlbumId);
+
+        result.MusicMetadata.TrackCount = albumMetadata.Tracks.Count;
+        result.MusicMetadata.TrackNumber = albumMetadata.Tracks.Index().First(x => x.Item.Id == youTubeId).Index + 1;
+
+        return result;
     }
 
     private async Task<string> GetAlbumIdAsync(string browseId)
@@ -169,5 +221,198 @@ internal partial class YouTubeTrackMetadataService(IYouTubeDlpService youTubeDlp
 
         var playlistId = playlistParent.Get<string>("playlistId");
         return playlistId;
+    }
+
+    private async Task<YouTubeMusicMetadata> PromptUserForMusicMetadataAsync(string youTubeId)
+    {
+        ConsoleHelper.Write($"{youTubeId} is a non-music video file.\r\nDo you want to enter a MusicBrainz Track URL to use as the metadata source? (Y/n): ", ConsoleColor.White);
+        var key = Console.ReadKey();
+
+        if (key.Key == ConsoleKey.Enter || key.Key == ConsoleKey.Y)
+        {
+            ConsoleHelper.Write("\r\nMusicBrainz Track URL: ", ConsoleColor.White);
+            var trackIdOrUrl = Console.ReadLine();
+
+            if (string.IsNullOrEmpty(trackIdOrUrl))
+            {
+                return await PromptUserForMusicMetadataAsync(youTubeId);
+            }
+
+            if (!Uri.TryCreate(trackIdOrUrl, UriKind.Absolute, out var uri))
+            {
+                throw new InvalidOperationException("Invalid MusicBrainz URL: must be a valid URL.");
+            }
+
+            var matchUrlFormat = Regex.Match(uri.LocalPath + uri.Fragment, @"^\/release\/([a-zA-Z0-9-]+)\/[a-zA-Z0-9]+/[a-zA-Z0-9-]+#([a-zA-Z0-9-]+)$");
+
+            if (!matchUrlFormat.Success)
+            {
+                throw new InvalidOperationException("Not a valid MusicBrainz Track URL: must be the URL to a track.");
+            }
+
+            var releaseId = Guid.Parse(matchUrlFormat.Groups[1].Value);
+            var trackId = Guid.Parse(matchUrlFormat.Groups[2].Value);
+
+            var release = await musicBrainzService.GetReleaseByIdAsync(releaseId);
+            var track = release.Media.SelectMany(x => x.Tracks).First(x => x.Id == trackId);
+
+            var releaseArt = await coverArtArchiveService.GetReleaseArtAsync(releaseId);
+
+            return new YouTubeMusicMetadata
+            {
+                Title = track.Title,
+                Album = release.Title,
+                AlbumArtUrl = releaseArt.Images.FirstOrDefault(x => x.Front)?.Thumbnails["500"],
+                Artists = release.ArtistCredit.Select(x => x.Name).ToArray(),
+                ReleaseDate = release.Date,
+                ReleaseYear = release.ReleaseYear,
+                TrackCount = release.TrackCount,
+                TrackNumber = musicBrainzService.GetTrackNumberWithoutAdornments(track.Number)
+            };
+        }
+        else if (key.Key == ConsoleKey.N)
+        {
+            ConsoleHelper.Write($"Do you want to enter details manually? (Y/n): ", ConsoleColor.White);
+            key = Console.ReadKey();
+
+            if (key.Key == ConsoleKey.Enter || key.Key == ConsoleKey.Y)
+            {
+                ConsoleHelper.Write("\r\n1/7 Title: ", ConsoleColor.White);
+                var title = Console.ReadLine();
+
+                if (string.IsNullOrEmpty(title))
+                {
+                    ConsoleHelper.WriteLine("Title is required.", ConsoleColor.Red);
+                    ConsoleHelper.Write("\r\n1/7 Title: ", ConsoleColor.White);
+                    title = Console.ReadLine();
+
+                    if (string.IsNullOrEmpty(title))
+                    {
+                        return null;
+                    }
+                }
+
+                ConsoleHelper.Write("2/7 Album: ", ConsoleColor.White);
+                var album = Console.ReadLine();
+
+                if (string.IsNullOrEmpty(album))
+                {
+                    ConsoleHelper.WriteLine("Album is required.", ConsoleColor.Red);
+                    ConsoleHelper.Write("\r\n2/7 Album: ", ConsoleColor.White);
+                    album = Console.ReadLine();
+
+                    if (string.IsNullOrEmpty(album))
+                    {
+                        return null;
+                    }
+                }
+
+                ConsoleHelper.Write("3/7 Alternate Title (): ", ConsoleColor.White);
+                var alternateTitle = Console.ReadLine();
+
+                ConsoleHelper.Write("4/7 Artists ; separated (): ", ConsoleColor.White);
+                var artistsRaw = Console.ReadLine();
+
+                ConsoleHelper.Write("5/7 Release Year (): ", ConsoleColor.White);
+                var releaseYearString = Console.ReadLine();
+                int? releaseYear = null;
+
+                if (!string.IsNullOrEmpty(releaseYearString))
+                {
+                }    
+                else if (!int.TryParse(releaseYearString, out var releaseYearValue))
+                {
+                    ConsoleHelper.WriteLine("Track number must be an integer.", ConsoleColor.Red);
+                    ConsoleHelper.Write("\r\n6/7 Track Number (1): ", ConsoleColor.White);
+                    releaseYearString = Console.ReadLine();
+
+                    if (!string.IsNullOrEmpty(releaseYearString))
+                    {
+                    }
+                    else if (!int.TryParse(releaseYearString, out releaseYearValue))
+                    {
+                        return null;
+                    }
+                    else
+                    {
+                        releaseYear = releaseYearValue;
+                    }
+                }
+                else
+                {
+                    releaseYear = releaseYearValue;
+                }
+
+                ConsoleHelper.Write("6/7 Track Number (1): ", ConsoleColor.White);
+                var trackNumberString = Console.ReadLine();
+
+                if (string.IsNullOrEmpty(trackNumberString))
+                {
+                    trackNumberString = "1";
+                }
+
+                if (!int.TryParse(trackNumberString, out var trackNumber))
+                {
+                    ConsoleHelper.WriteLine("Track number must be an integer.", ConsoleColor.Red);
+                    ConsoleHelper.Write("\r\n6/7 Track Number (1): ", ConsoleColor.White);
+                    trackNumberString = Console.ReadLine();
+
+                    if (string.IsNullOrEmpty(trackNumberString))
+                    {
+                        trackNumberString = "1";
+                    }
+
+                    if (!int.TryParse(trackNumberString, out trackNumber))
+                    {
+                        return null;
+                    }
+                }
+
+                ConsoleHelper.Write("7/7 Track Count (1): ", ConsoleColor.White);
+                var trackCountString = Console.ReadLine();
+
+                if (!int.TryParse(trackCountString, out var trackCount))
+                {
+                    ConsoleHelper.WriteLine("Track number must be an integer.", ConsoleColor.Red);
+                    ConsoleHelper.Write("\r\n7/7 Track Number (1): ", ConsoleColor.White);
+                    trackCountString = Console.ReadLine();
+
+                    if (string.IsNullOrEmpty(trackCountString))
+                    {
+                        trackCountString = "1";
+                    }
+
+                    if (!int.TryParse(trackCountString, out trackCount))
+                    {
+                        return null;
+                    }
+                }
+
+                return new YouTubeMusicMetadata
+                {
+                    Title = title,
+                    TrackNumber = trackNumber,
+                    TrackCount = trackCount,
+                    Album = album,
+                    AlternateTitle = alternateTitle,
+                    Artists = artistsRaw.Split(';').Select(x => x.Trim()).ToArray(),
+                    ReleaseYear = releaseYear
+                };
+            }
+            else if (key.Key == ConsoleKey.N)
+            {
+                return null;
+            }
+            else
+            {
+                ConsoleHelper.WriteLine(string.Empty, ConsoleColor.White);
+                return await PromptUserForMusicMetadataAsync(youTubeId);
+            }
+        }
+        else
+        {
+            ConsoleHelper.WriteLine(string.Empty, ConsoleColor.White);
+            return await PromptUserForMusicMetadataAsync(youTubeId);
+        }
     }
 }

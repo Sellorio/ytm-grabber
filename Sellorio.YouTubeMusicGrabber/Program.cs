@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sellorio.YouTubeMusicGrabber.Commands;
 using Sellorio.YouTubeMusicGrabber.Services;
 using Sellorio.YouTubeMusicGrabber.Services.Common;
+using Sellorio.YouTubeMusicGrabber.Services.CoverArtArchive;
 using Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -15,6 +16,12 @@ services.AddHttpClient();
 services.AddHttpClient<IMusicBrainzService, MusicBrainzService>(o =>
 {
     o.BaseAddress = new Uri("https://musicbrainz.org/ws/2/");
+    o.DefaultRequestHeaders.UserAgent.ParseAdd("ytmgrabber/1.0");
+});
+
+services.AddHttpClient<ICoverArtArchiveService, CoverArtArchiveService>(o =>
+{
+    o.BaseAddress = new Uri("https://coverartarchive.org/");
     o.DefaultRequestHeaders.UserAgent.ParseAdd("ytmgrabber/1.0");
 });
 

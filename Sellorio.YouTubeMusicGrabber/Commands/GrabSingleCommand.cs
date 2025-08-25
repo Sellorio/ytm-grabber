@@ -59,14 +59,13 @@ internal class GrabSingleCommand : ICommand
     {
         var latestYouTubeId = await youTubeTrackMetadataService.GetLatestYouTubeIdAsync(youTubeId);
         var trackMetadata = await youTubeTrackMetadataService.GetMetadataAsync(latestYouTubeId);
-        var albumMetadata = await youTubeAlbumMetadataService.GetMetadataAsync(trackMetadata.AlbumId);
-        var trackNumber = albumMetadata.Tracks.Index().First(x => x.Item.Id == latestYouTubeId).Index + 1;
+        var albumMetadata = await youTubeAlbumMetadataService.GetMetadataAsync(trackMetadata.MusicMetadata.AlbumId);
 
         await youTubeDownloadService.DownloadAsMp3Async(trackMetadata, OutputFilename, (int)(Quality ?? Options.Quality.High));
 
         try
         {
-            await youTubeFileTagsService.UpdateFileMetadataAsync(OutputFilename, albumMetadata, trackMetadata, trackNumber);
+            await youTubeFileTagsService.UpdateFileMetadataAsync(OutputFilename, albumMetadata, trackMetadata);
         }
         catch
         {

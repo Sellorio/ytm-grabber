@@ -11,7 +11,7 @@ namespace Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 internal class YouTubeDownloadService(IYouTubeDlpService youTubeDlpService) : IYouTubeDownloadService
 {
-    public async Task DownloadAsMp3Async(YouTubeTrackMetadata metadata, string outputFilename, int outputBitrateKbps)
+    public async Task DownloadAsMp3Async(YouTubeVideoMetadata metadata, string outputFilename, int outputBitrateKbps)
     {
         for (var i = 0; i < 2; i++)
         {

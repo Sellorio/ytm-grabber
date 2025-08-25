@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace Sellorio.YouTubeMusicGrabber.Models.YouTube;
+namespace Sellorio.YouTubeMusicGrabber.Models.YouTube.Dtos;
 
-internal class YouTubeTrackMetadata
+internal class TrackMetadataDto
 {
     [JsonPropertyName("id")]
     public string Id { get; set; }
@@ -21,11 +20,6 @@ internal class YouTubeTrackMetadata
     [JsonPropertyName("album")]
     public string Album { get; set; }
 
-    // Retrieved after the YouTube API call by reading the static JSON on the YouTube Music
-    // web page for the song.
-    [JsonIgnore]
-    public string AlbumId { get; set; }
-
     [JsonPropertyName("artists")]
     public IList<string> Artists { get; set; }
 
@@ -36,10 +30,10 @@ internal class YouTubeTrackMetadata
     public string ThumbnailUri { get; set; }
 
     [JsonPropertyName("thumbnails")]
-    public IList<Thumbnail> Thumbnails { get; set; }
+    public IList<ThumbnailDto> Thumbnails { get; set; }
 
     [JsonPropertyName("formats")]
-    public IList<Format> Formats { get; set; }
+    public IList<FormatDto> Formats { get; set; }
 
     [JsonPropertyName("release_date")]
     public string ReleaseDateYYYYMMDD { get; set; }
@@ -49,12 +43,4 @@ internal class YouTubeTrackMetadata
 
     [JsonPropertyName("filename")]
     public string Filename { get; set; }
-
-    [JsonIgnore]
-    public DateOnly? ReleaseDate =>
-        ReleaseDateYYYYMMDD == null
-            ? null
-            : new(int.Parse(ReleaseDateYYYYMMDD.AsSpan(0, 4)),
-                  int.Parse(ReleaseDateYYYYMMDD.AsSpan(4, 2)),
-                  int.Parse(ReleaseDateYYYYMMDD.AsSpan(6, 2)));
 }

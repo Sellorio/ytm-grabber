@@ -8,36 +8,28 @@ namespace Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 internal class YouTubeFileTagsService(HttpClient httpClient) : IYouTubeFileTagsService
 {
-    public async Task UpdateFileMetadataAsync(string filename, YouTubeAlbumMetadata albumMetadata, YouTubeTrackMetadata trackMetadata, int trackNumber)
+    public async Task UpdateFileMetadataAsync(string filename, YouTubeAlbumMetadata albumMetadata, YouTubeVideoMetadata trackMetadata)
     {
-        var bestThumbnailPreferenceScore =
-            trackMetadata.Thumbnails != null && trackMetadata.Thumbnails.Any()
-                ? trackMetadata.Thumbnails.Min(x => x.Preference)
-                : 0;
-
-        var preferredThumbnail =
-            trackMetadata.Thumbnails
-                .Where(x => x.Preference == bestThumbnailPreferenceScore && x.Width == x.Height && x.Width < 500)
-                .OrderByDescending(x => x.Width)
-                .FirstOrDefault();
-
-        var thumbnailBytes = preferredThumbnail == null ? null : await httpClient.GetByteArrayAsync(preferredThumbnail.Url);
+        var thumbnailBytes =
+            trackMetadata.MusicMetadata.AlbumArtUrl == null
+                ? null
+                : await httpClient.GetByteArrayAsync(trackMetadata.MusicMetadata.AlbumArtUrl);
 
         using var mp3 = File.Create(filename);
         var tag = mp3.GetTag(TagTypes.Id3v2, true);
-        tag.Title = trackMetadata.Title;
+        tag.Title = trackMetadata.MusicMetadata.Title;
 
-        if (!string.IsNullOrEmpty(trackMetadata.AlternateTitle) && trackMetadata.Title != trackMetadata.AlternateTitle)
+        if (!string.IsNullOrEmpty(trackMetadata.MusicMetadata.AlternateTitle) && trackMetadata.MusicMetadata.Title != trackMetadata.MusicMetadata.AlternateTitle)
         {
-            tag.Subtitle = trackMetadata.AlternateTitle;
+            tag.Subtitle = trackMetadata.MusicMetadata.AlternateTitle;
         }
 
-        tag.Album = albumMetadata.Title;
-        tag.AlbumArtists = albumMetadata.Artists;
-        tag.Performers = trackMetadata.Artists.ToArray();
-        tag.Year = (uint)(albumMetadata.ReleaseYear ?? default);
-        tag.Track = (uint)trackNumber;
-        tag.TrackCount = (uint)albumMetadata.Tracks.Count;
+        tag.Album = albumMetadata?.Title ?? trackMetadata.MusicMetadata.Album;
+        tag.AlbumArtists = albumMetadata?.Artists;
+        tag.Performers = trackMetadata.MusicMetadata.Artists.ToArray();
+        tag.Year = (uint)(albumMetadata?.ReleaseYear ?? trackMetadata.MusicMetadata.ReleaseYear ?? default);
+        tag.Track = (uint)trackMetadata.MusicMetadata.TrackNumber;
+        tag.TrackCount = (uint)trackMetadata.MusicMetadata.TrackCount;
 
         if (thumbnailBytes != null)
         {

@@ -1,8 +1,8 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Sellorio.YouTubeMusicGrabber.Models.YouTube;
+namespace Sellorio.YouTubeMusicGrabber.Models.YouTube.Dtos;
 
-internal class Format
+internal class FormatDto
 {
     [JsonPropertyName("format_id")]
     public string Id { get; set; }

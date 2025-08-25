@@ -127,7 +127,7 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
         };
     }
 
-    private async Task<Recording> GetRecordingByIdAsync(Guid recordingId)
+    public async Task<Recording> GetRecordingByIdAsync(Guid recordingId)
     {
         var result = await httpClient.GetAsync($"recording/{recordingId}?fmt=json&inc=releases+artists+release-groups+media");
 
@@ -154,7 +154,7 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
         return recording;
     }
 
-    private async Task<Release> GetReleaseByIdAsync(Guid releaseId)
+    public async Task<Release> GetReleaseByIdAsync(Guid releaseId)
     {
         var result = await httpClient.GetAsync($"release/{releaseId}?fmt=json&inc=artists+release-groups+media+recordings");
 
@@ -181,6 +181,8 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
 
             trackOffset += medium.TrackCount;
         }
+
+        release.TrackCount = trackOffset;
 
         return release;
     }
@@ -540,7 +542,7 @@ internal partial class MusicBrainzService(HttpClient httpClient) : IMusicBrainzS
         }
     }
 
-    private static int GetTrackNumberWithoutAdornments(string trackNumber)
+    public int GetTrackNumberWithoutAdornments(string trackNumber)
     {
         // just get the number from the following formats:
         // 1-17 (disk 1, track 17)

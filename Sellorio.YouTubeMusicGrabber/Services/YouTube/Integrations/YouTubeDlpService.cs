@@ -10,22 +10,23 @@ using System.Threading.Tasks;
 using Sellorio.YouTubeMusicGrabber.Exceptions;
 using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
+using Sellorio.YouTubeMusicGrabber.Models.YouTube.Dtos;
 using Sellorio.YouTubeMusicGrabber.Services.Common;
 
 namespace Sellorio.YouTubeMusicGrabber.Services.YouTube.Integrations;
 
 internal class YouTubeDlpService(IRateLimitService rateLimitService) : IYouTubeDlpService
 {
-    public async Task<YouTubeTrackMetadata> GetTrackMetadataAsync(string youTubeId)
+    public async Task<TrackMetadataDto> GetTrackMetadataAsync(string youTubeId)
     {
         ConsoleHelper.WriteLine($"Retrieving track metadata for {youTubeId}...", ConsoleColor.DarkGray);
 
-        YouTubeTrackMetadata result = null;
+        TrackMetadataDto result = null;
 
         await rateLimitService.WithRateLimit(RateLimits.DlpTrackInfo, async () =>
         {
             var json = await InvokeYtDlpAsync(youTubeId, $"--cookies cookies.txt --print-json --skip-download \"https://music.youtube.com/watch?v={youTubeId}\"");
-            result = JsonSerializer.Deserialize<YouTubeTrackMetadata>(json);
+            result = JsonSerializer.Deserialize<TrackMetadataDto>(json);
         });
 
         return result;

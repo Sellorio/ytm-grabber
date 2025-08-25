@@ -1,8 +1,8 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Sellorio.YouTubeMusicGrabber.Models.YouTube;
+namespace Sellorio.YouTubeMusicGrabber.Models.YouTube.Dtos;
 
-internal class Thumbnail
+internal class ThumbnailDto
 {
     [JsonPropertyName("url")]
     public string Url { get; set; }

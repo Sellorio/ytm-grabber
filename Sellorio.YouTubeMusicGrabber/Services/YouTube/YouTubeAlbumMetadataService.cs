@@ -1,14 +1,33 @@
 ﻿using Sellorio.YouTubeMusicGrabber.Models.YouTube;
 using Sellorio.YouTubeMusicGrabber.Services.YouTube.Integrations;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sellorio.YouTubeMusicGrabber.Services.YouTube
 {
     internal class YouTubeAlbumMetadataService(IYouTubeDlpService youTubeDlpService, IYouTubePageService youTubePageService) : IYouTubeAlbumMetadataService
     {
+        private static readonly Dictionary<string, YouTubeAlbumMetadata> _cache = new();
+        private static readonly SemaphoreSlim _cacheLock = new(1);
+
         public async Task<YouTubeAlbumMetadata> GetMetadataAsync(string youTubeId)
         {
+            await _cacheLock.WaitAsync();
+
+            try
+            {
+                if (_cache.TryGetValue(youTubeId, out YouTubeAlbumMetadata metadata))
+                {
+                    return metadata;
+                }
+            }
+            finally
+            {
+                _cacheLock.Release();
+            }
+
             var tracks = await youTubeDlpService.GetPlaylistEntriesAsync(youTubeId);
             var pageData = await youTubePageService.GetPageInitialDataAsync($"https://music.youtube.com/playlist?list={youTubeId}");
 
@@ -23,7 +42,7 @@ namespace Sellorio.YouTubeMusicGrabber.Services.YouTube
             var releaseYear = !string.IsNullOrEmpty(releaseYearString) && int.TryParse(releaseYearString, out var p) ? p : (int?)null;
             var albumArtists = albumHeaderJson["straplineTextOne"]?["runs"].Select(x => x.Get<string>("text")).ToArray();
 
-            return new YouTubeAlbumMetadata
+            var result = new YouTubeAlbumMetadata
             {
                 Id = youTubeId,
                 Tracks = tracks,
@@ -31,6 +50,19 @@ namespace Sellorio.YouTubeMusicGrabber.Services.YouTube
                 ReleaseYear = releaseYear,
                 Artists = albumArtists
             };
+
+            await _cacheLock.WaitAsync();
+
+            try
+            {
+                _cache[youTubeId] = result;
+            }
+            finally
+            {
+                _cacheLock.Release();
+            }
+
+            return result;
         }
     }
 }

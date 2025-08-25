@@ -5,6 +5,6 @@ namespace Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 internal interface IYouTubeTrackMetadataService
 {
-    Task<YouTubeTrackMetadata> GetMetadataAsync(string youTubeId);
+    Task<YouTubeVideoMetadata> GetMetadataAsync(string youTubeId);
     Task<string> GetLatestYouTubeIdAsync(string youTubeId);
 }
