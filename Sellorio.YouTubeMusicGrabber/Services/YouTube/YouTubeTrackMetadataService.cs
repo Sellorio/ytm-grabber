@@ -257,12 +257,23 @@ internal partial class YouTubeTrackMetadataService(
             var track = release.Media.SelectMany(x => x.Tracks).First(x => x.Id == trackId);
 
             var releaseArt = await coverArtArchiveService.GetReleaseArtAsync(releaseId);
+            var releaseArtUrl = releaseArt?.Images.FirstOrDefault(x => x.Front)?.Thumbnails["500"];
+
+            if (releaseArtUrl == null)
+            {
+                releaseArtUrl =
+                    ConsoleHelper.PromptForUri(
+                        "This MusicBrainz release does not have album art.\r\n" +
+                        "Please enter a URL to the album art you want to use.\r\n" +
+                        "The art must be square and no more than 500x500.\r\n" +
+                        "Album Art URL: ")?.AbsoluteUri;
+            }
 
             return new YouTubeMusicMetadata
             {
                 Title = track.Title,
                 Album = release.Title,
-                AlbumArtUrl = releaseArt.Images.FirstOrDefault(x => x.Front)?.Thumbnails["500"],
+                AlbumArtUrl = releaseArtUrl,
                 Artists = release.ArtistCredit.Select(x => x.Name).ToArray(),
                 ReleaseDate = release.Date,
                 ReleaseYear = release.ReleaseYear,
@@ -388,6 +399,12 @@ internal partial class YouTubeTrackMetadataService(
                     }
                 }
 
+                var releaseArtUrl =
+                    ConsoleHelper.PromptForUri(
+                        "Please enter a URL to the album art you want to use.\r\n" +
+                        "The art must be square and no more than 500x500.\r\n" +
+                        "Album Art URL: ")?.AbsoluteUri;
+
                 return new YouTubeMusicMetadata
                 {
                     Title = title,
@@ -396,7 +413,8 @@ internal partial class YouTubeTrackMetadataService(
                     Album = album,
                     AlternateTitle = alternateTitle,
                     Artists = artistsRaw.Split(';').Select(x => x.Trim()).ToArray(),
-                    ReleaseYear = releaseYear
+                    ReleaseYear = releaseYear,
+                    AlbumArtUrl = releaseArtUrl
                 };
             }
             else if (key.Key == ConsoleKey.N)
