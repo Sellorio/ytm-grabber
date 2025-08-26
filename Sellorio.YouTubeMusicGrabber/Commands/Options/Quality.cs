@@ -3,7 +3,7 @@
 internal enum Quality
 {
     Invalid,
-    Medium = 128,
+    Medium = 196,
     High = 256,
     VeryHigh = 320
 }

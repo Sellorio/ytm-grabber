@@ -15,7 +15,7 @@ internal class GrabSingleCommand : ICommand
     [Value(0, Required = true, HelpText = "YouTube/YouTube Music Uri.")]
     public string Uri { get; set; }
 
-    [Option('q', "output-quality", HelpText = "Output quality (Medium - 128k, High - 256k, VeryHigh - 320k).")]
+    [Option('q', "output-quality", HelpText = "Output quality (Medium - 196k, High - 256k, VeryHigh - 320k).")]
     public Quality? Quality { get; set; }
 
     [Option('o', "output-filename", Required = true)]
