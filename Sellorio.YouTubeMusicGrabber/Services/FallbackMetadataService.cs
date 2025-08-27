@@ -49,7 +49,14 @@ internal class FallbackMetadataService(
             var track = release.Media.SelectMany(x => x.Tracks).First(x => x.Id == trackId);
 
             var releaseArt = await coverArtArchiveService.GetReleaseArtAsync(releaseId);
-            var releaseArtUrl = releaseArt?.Images.FirstOrDefault(x => x.Front)?.Thumbnails["500"];
+            var frontCover = releaseArt?.Images.FirstOrDefault(x => x.Front);
+            string releaseArtUrl = null;
+            
+            if (frontCover != null)
+            {
+                _ = frontCover.Thumbnails.TryGetValue("500", out releaseArtUrl) ||
+                    frontCover.Thumbnails.TryGetValue("large", out releaseArtUrl);
+            }
 
             if (releaseArtUrl == null)
             {
