@@ -10,7 +10,16 @@ namespace Sellorio.YouTubeMusicGrabber.Services.CoverArtArchive
     {
         public async Task<ReleaseArtDto> GetReleaseArtAsync(Guid musicBrainzReleaseId)
         {
-            return await httpClient.GetFromJsonAsync<ReleaseArtDto>($"release/{musicBrainzReleaseId}");
+            var response = await httpClient.GetAsync($"release/{musicBrainzReleaseId}");
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            return await response.Content.ReadFromJsonAsync<ReleaseArtDto>();
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Sellorio.YouTubeMusicGrabber.Models.YouTube;
+﻿using Sellorio.YouTubeMusicGrabber.Models;
 using Sellorio.YouTubeMusicGrabber.Services.YouTube.Integrations;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,16 +9,16 @@ namespace Sellorio.YouTubeMusicGrabber.Services.YouTube
 {
     internal class YouTubeAlbumMetadataService(IYouTubeDlpService youTubeDlpService, IYouTubePageService youTubePageService) : IYouTubeAlbumMetadataService
     {
-        private static readonly Dictionary<string, YouTubeAlbumMetadata> _cache = new();
+        private static readonly Dictionary<string, ListMetadata> _cache = new();
         private static readonly SemaphoreSlim _cacheLock = new(1);
 
-        public async Task<YouTubeAlbumMetadata> GetMetadataAsync(string youTubeId)
+        public async Task<ListMetadata> GetMetadataAsync(string youTubeId)
         {
             await _cacheLock.WaitAsync();
 
             try
             {
-                if (_cache.TryGetValue(youTubeId, out YouTubeAlbumMetadata metadata))
+                if (_cache.TryGetValue(youTubeId, out ListMetadata metadata))
                 {
                     return metadata;
                 }
@@ -42,14 +42,11 @@ namespace Sellorio.YouTubeMusicGrabber.Services.YouTube
             var releaseYear = !string.IsNullOrEmpty(releaseYearString) && int.TryParse(releaseYearString, out var p) ? p : (int?)null;
             var albumArtists = albumHeaderJson["straplineTextOne"]?["runs"].Select(x => x.Get<string>("text")).ToArray();
 
-            var result = new YouTubeAlbumMetadata
-            {
-                Id = youTubeId,
-                Tracks = tracks,
-                Title = title,
-                ReleaseYear = releaseYear,
-                Artists = albumArtists
-            };
+            var result =
+                new ListMetadata(
+                    youTubeId,
+                    new ListMusicMetadata(title, albumArtists, releaseYear),
+                    tracks.Select(x => new ListEntry(x.Id, x.Title)).ToArray());
 
             await _cacheLock.WaitAsync();
 

@@ -1,14 +1,14 @@
 ﻿using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Sellorio.YouTubeMusicGrabber.Models.YouTube;
+using Sellorio.YouTubeMusicGrabber.Models;
 using TagLib;
 
-namespace Sellorio.YouTubeMusicGrabber.Services.YouTube;
+namespace Sellorio.YouTubeMusicGrabber.Services.Common;
 
-internal class YouTubeFileTagsService(HttpClient httpClient) : IYouTubeFileTagsService
+internal class FileTagsService(HttpClient httpClient) : IFileTagsService
 {
-    public async Task UpdateFileMetadataAsync(string filename, YouTubeAlbumMetadata albumMetadata, YouTubeVideoMetadata trackMetadata)
+    public async Task UpdateFileMetadataAsync(string filename, ListMetadata albumMetadata, ItemMetadata trackMetadata)
     {
         var thumbnailBytes =
             trackMetadata.MusicMetadata.AlbumArtUrl == null
@@ -24,10 +24,10 @@ internal class YouTubeFileTagsService(HttpClient httpClient) : IYouTubeFileTagsS
             tag.Subtitle = trackMetadata.MusicMetadata.AlternateTitle;
         }
 
-        tag.Album = albumMetadata?.Title ?? trackMetadata.MusicMetadata.Album;
-        tag.AlbumArtists = albumMetadata?.Artists;
+        tag.Album = albumMetadata?.MusicMetadata.Title ?? trackMetadata.MusicMetadata.Album;
+        tag.AlbumArtists = albumMetadata?.MusicMetadata.Artists.ToArray();
         tag.Performers = trackMetadata.MusicMetadata.Artists.ToArray();
-        tag.Year = (uint)(albumMetadata?.ReleaseYear ?? trackMetadata.MusicMetadata.ReleaseYear ?? default);
+        tag.Year = (uint)(albumMetadata?.MusicMetadata.ReleaseYear ?? trackMetadata.MusicMetadata.ReleaseYear ?? default);
         tag.Track = (uint)trackMetadata.MusicMetadata.TrackNumber;
         tag.TrackCount = (uint)trackMetadata.MusicMetadata.TrackCount;
 

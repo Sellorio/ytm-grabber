@@ -5,18 +5,22 @@ using System.Net;
 using System;
 using System.IO;
 using Sellorio.YouTubeMusicGrabber.Services.YouTube.Integrations;
+using Sellorio.YouTubeMusicGrabber.Models;
+using Sellorio.YouTubeMusicGrabber.Services.Common.Registries;
 
 namespace Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 internal static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddYouTubeServices(this IServiceCollection services, RateLimitService rateLimitService)
+    public static IServiceCollection AddYouTubeServices(this IServiceCollection services, RateLimitService rateLimitService, ItemSourceServiceRegistry itemSourceServiceRegistry)
     {
         rateLimitService.ConfigureRateLimit(RateLimits.DlpDownload, TimeSpan.FromSeconds(10));
         rateLimitService.ConfigureRateLimit(RateLimits.DlpTrackInfo, TimeSpan.FromSeconds(10));
         rateLimitService.ConfigureRateLimit(RateLimits.DlpPlaylistInfo, TimeSpan.FromMilliseconds(500));
         rateLimitService.ConfigureRateLimit(RateLimits.XHR, TimeSpan.FromMilliseconds(500));
         rateLimitService.ConfigureRateLimit(RateLimits.Page, TimeSpan.FromMilliseconds(500));
+
+        itemSourceServiceRegistry.RegisterServices<YouTubeItemIdResolver, YouTubeItemMetadataService, YouTubeItemDownloadService>(ItemSource.YouTube);
 
         var withYouTubeCookiesHandler = CreateHandlerFromCookiesFile("cookies.txt");
 
@@ -30,10 +34,8 @@ internal static class ServiceCollectionExtensions
             o.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0");
         }).ConfigurePrimaryHttpMessageHandler(() => withYouTubeCookiesHandler);
 
-        services.AddScoped<IYouTubeDownloadService, YouTubeDownloadService>();
         services.AddScoped<IYouTubeDlpService, YouTubeDlpService>();
         services.AddScoped<IYouTubeUriService, YouTubeUriService>();
-        services.AddScoped<IYouTubeTrackMetadataService, YouTubeTrackMetadataService>();
         services.AddScoped<IYouTubeAlbumMetadataService, YouTubeAlbumMetadataService>();
 
         return services;

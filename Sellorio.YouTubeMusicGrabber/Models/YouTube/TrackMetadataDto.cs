@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace Sellorio.YouTubeMusicGrabber.Models.YouTube.Dtos;
+namespace Sellorio.YouTubeMusicGrabber.Models.YouTube;
 
 internal class TrackMetadataDto
 {
@@ -43,4 +43,6 @@ internal class TrackMetadataDto
 
     [JsonPropertyName("filename")]
     public string Filename { get; set; }
+
+    public bool HasMusicMetadata() => Album != null;
 }

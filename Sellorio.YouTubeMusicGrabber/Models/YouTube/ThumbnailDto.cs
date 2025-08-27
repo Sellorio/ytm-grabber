@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Sellorio.YouTubeMusicGrabber.Models.YouTube.Dtos;
+namespace Sellorio.YouTubeMusicGrabber.Models.YouTube;
 
 internal class ThumbnailDto
 {

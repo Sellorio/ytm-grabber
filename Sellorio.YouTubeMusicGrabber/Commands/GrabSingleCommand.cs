@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Sellorio.YouTubeMusicGrabber.Commands.Options;
+using Sellorio.YouTubeMusicGrabber.Models;
+using Sellorio.YouTubeMusicGrabber.Services.Common;
 using Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 namespace Sellorio.YouTubeMusicGrabber.Commands;
@@ -28,40 +30,37 @@ internal class GrabSingleCommand : ICommand
             throw new InvalidOperationException();
         }
 
-        var youTubeDownloadService = serviceProvider.GetRequiredService<IYouTubeDownloadService>();
+        var itemSourceServiceProvider = serviceProvider.GetRequiredService<IItemSourceServiceProvider>();
         var youTubeUriService = serviceProvider.GetRequiredService<IYouTubeUriService>();
-        var youTubeFileTagsService = serviceProvider.GetRequiredService<IYouTubeFileTagsService>();
+        var youTubeFileTagsService = serviceProvider.GetRequiredService<IFileTagsService>();
         var youTubeAlbumMetadataService = serviceProvider.GetRequiredService<IYouTubeAlbumMetadataService>();
-        var youTubeTrackMetadataService = serviceProvider.GetRequiredService<IYouTubeTrackMetadataService>();
+        var itemIdResolver = itemSourceServiceProvider.GetRequiredService<IItemIdResolver>(ItemSource.YouTube);
+        var itemMetadataService = itemSourceServiceProvider.GetRequiredService<IItemMetadataService>(ItemSource.YouTube);
+        var youTubeDownloadService = itemSourceServiceProvider.GetRequiredService<IItemDownloadService>(ItemSource.YouTube);
 
         if (youTubeUriService.TryParseTrackId(Uri, out var youTubeId))
         {
-            await GrabTrackAsync(youTubeTrackMetadataService, youTubeAlbumMetadataService, youTubeDownloadService, youTubeFileTagsService, youTubeId);
-        }
-        else if (youTubeUriService.TryParseAlbumId(Uri, out var albumId))
-        {
-            throw new NotImplementedException();
+            await GrabTrackAsync(itemIdResolver, itemMetadataService, youTubeAlbumMetadataService, youTubeDownloadService, youTubeFileTagsService, youTubeId);
         }
         else
         {
-            throw new ArgumentException("The given URI does not link to a video/album/playlist.");
+            throw new ArgumentException("The given URI does not link to a video.");
         }
-
-        
     }
 
     private async Task GrabTrackAsync(
-        IYouTubeTrackMetadataService youTubeTrackMetadataService,
+        IItemIdResolver itemIdResolver,
+        IItemMetadataService itemMetadataService,
         IYouTubeAlbumMetadataService youTubeAlbumMetadataService,
-        IYouTubeDownloadService youTubeDownloadService,
-        IYouTubeFileTagsService youTubeFileTagsService,
+        IItemDownloadService downloadService,
+        IFileTagsService youTubeFileTagsService,
         string youTubeId)
     {
-        var latestYouTubeId = await youTubeTrackMetadataService.GetLatestYouTubeIdAsync(youTubeId);
-        var trackMetadata = await youTubeTrackMetadataService.GetMetadataAsync(latestYouTubeId);
+        var latestYouTubeId = await itemIdResolver.ResolveItemIdAsync(youTubeId);
+        var trackMetadata = await itemMetadataService.GetMetadataAsync(latestYouTubeId);
         var albumMetadata = await youTubeAlbumMetadataService.GetMetadataAsync(trackMetadata.MusicMetadata.AlbumId);
 
-        await youTubeDownloadService.DownloadAsMp3Async(trackMetadata, OutputFilename, (int)(Quality ?? Options.Quality.High));
+        await downloadService.DownloadAsMp3Async(trackMetadata, OutputFilename, (int)(Quality ?? Options.Quality.High));
 
         try
         {

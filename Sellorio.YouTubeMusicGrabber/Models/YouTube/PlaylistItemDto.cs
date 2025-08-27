@@ -2,7 +2,7 @@
 
 namespace Sellorio.YouTubeMusicGrabber.Models.YouTube;
 
-internal class YouTubePlaylistItem
+internal class PlaylistItemDto
 {
     [JsonPropertyName("id")]
     public string Id { get; set; }

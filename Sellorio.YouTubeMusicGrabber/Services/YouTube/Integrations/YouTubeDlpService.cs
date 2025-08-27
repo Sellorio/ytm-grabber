@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using Sellorio.YouTubeMusicGrabber.Exceptions;
 using Sellorio.YouTubeMusicGrabber.Helpers;
 using Sellorio.YouTubeMusicGrabber.Models.YouTube;
-using Sellorio.YouTubeMusicGrabber.Models.YouTube.Dtos;
 using Sellorio.YouTubeMusicGrabber.Services.Common;
 
 namespace Sellorio.YouTubeMusicGrabber.Services.YouTube.Integrations;
@@ -19,8 +18,6 @@ internal class YouTubeDlpService(IRateLimitService rateLimitService) : IYouTubeD
 {
     public async Task<TrackMetadataDto> GetTrackMetadataAsync(string youTubeId)
     {
-        ConsoleHelper.WriteLine($"Retrieving track metadata for {youTubeId}...", ConsoleColor.DarkGray);
-
         TrackMetadataDto result = null;
 
         await rateLimitService.WithRateLimit(RateLimits.DlpTrackInfo, async () =>
@@ -32,17 +29,17 @@ internal class YouTubeDlpService(IRateLimitService rateLimitService) : IYouTubeD
         return result;
     }
 
-    public async Task<IList<YouTubePlaylistItem>> GetPlaylistEntriesAsync(string youTubeId)
+    public async Task<IList<PlaylistItemDto>> GetPlaylistEntriesAsync(string youTubeId)
     {
         ConsoleHelper.WriteLine($"Retrieving tracks list for playlist {youTubeId}...", ConsoleColor.DarkGray);
 
-        IList<YouTubePlaylistItem> result = null;
+        IList<PlaylistItemDto> result = null;
 
         await rateLimitService.WithRateLimit(RateLimits.DlpPlaylistInfo, async () =>
         {
             var output = await InvokeYtDlpAsync(youTubeId, $"--cookies cookies.txt --flat-playlist --print-json --skip-download \"https://music.youtube.com/playlist?list={youTubeId}\"");
             var jsons = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            result = jsons.Select(x => JsonSerializer.Deserialize<YouTubePlaylistItem>(x)).ToList();
+            result = jsons.Select(x => JsonSerializer.Deserialize<PlaylistItemDto>(x)).ToList();
         });
 
         return result;
@@ -50,8 +47,6 @@ internal class YouTubeDlpService(IRateLimitService rateLimitService) : IYouTubeD
 
     public async Task DownloadAsync(string youTubeId)
     {
-        ConsoleHelper.WriteLine($"Downloading track {youTubeId}...", ConsoleColor.Cyan);
-
         await rateLimitService.WithRateLimit([RateLimits.DlpDownload, RateLimits.DlpTrackInfo], async () =>
         {
             await InvokeYtDlpAsync(youTubeId, $"--cookies cookies.txt --ffmpeg-location . \"https://music.youtube.com/watch?v={youTubeId}\"");

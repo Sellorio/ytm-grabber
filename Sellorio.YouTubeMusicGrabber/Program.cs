@@ -5,12 +5,13 @@ using Sellorio.YouTubeMusicGrabber.Commands;
 using Sellorio.YouTubeMusicGrabber.Services;
 using Sellorio.YouTubeMusicGrabber.Services.Common;
 using Sellorio.YouTubeMusicGrabber.Services.CoverArtArchive;
+using Sellorio.YouTubeMusicGrabber.Services.SoundCloud;
 using Sellorio.YouTubeMusicGrabber.Services.YouTube;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-
 var services = new ServiceCollection();
+
 services.AddHttpClient();
 
 services.AddHttpClient<IMusicBrainzService, MusicBrainzService>(o =>
@@ -25,11 +26,10 @@ services.AddHttpClient<ICoverArtArchiveService, CoverArtArchiveService>(o =>
     o.DefaultRequestHeaders.UserAgent.ParseAdd("ytmgrabber/1.0");
 });
 
-var rateLimitService = new RateLimitService();
-
-services.AddYouTubeServices(rateLimitService);
-services.AddSingleton<IRateLimitService>(rateLimitService);
-services.AddScoped<IYouTubeFileTagsService, YouTubeFileTagsService>();
+services.AddCommonServices(out var rateLimitService, out var itemSourceServiceRegistry);
+services.AddYouTubeServices(rateLimitService, itemSourceServiceRegistry);
+services.AddSoundCloudServices(itemSourceServiceRegistry);
+services.AddScoped<IFallbackMetadataService, FallbackMetadataService>();
 services.AddScoped<ISyncService, SyncService>();
 
 var serviceProvider = services.BuildServiceProvider();

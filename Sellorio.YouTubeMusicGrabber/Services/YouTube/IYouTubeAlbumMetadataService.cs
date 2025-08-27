@@ -1,10 +1,10 @@
-﻿using Sellorio.YouTubeMusicGrabber.Models.YouTube;
+﻿using Sellorio.YouTubeMusicGrabber.Models;
 using System.Threading.Tasks;
 
 namespace Sellorio.YouTubeMusicGrabber.Services.YouTube
 {
     internal interface IYouTubeAlbumMetadataService
     {
-        Task<YouTubeAlbumMetadata> GetMetadataAsync(string youTubeId);
+        Task<ListMetadata> GetMetadataAsync(string youTubeId);
     }
 }
