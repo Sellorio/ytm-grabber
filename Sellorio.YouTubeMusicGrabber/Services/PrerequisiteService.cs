@@ -17,7 +17,7 @@ namespace Sellorio.YouTubeMusicGrabber.Services
 
         public async Task EnsureYouTubeDlpAsync(bool force = false)
         {
-            if (!_recentlyInstalledYouTubeDlp && (force || !File.Exists("yt-dlp.exe")))
+            if (_recentlyInstalledYouTubeDlp || !force && File.Exists("yt-dlp.exe"))
             {
                 return;
             }
@@ -33,7 +33,7 @@ namespace Sellorio.YouTubeMusicGrabber.Services
 
         public async Task EnsureFfmpegAsync(bool force = false)
         {
-            if (!_recentlyInstalledFfmpeg && (force || !File.Exists("ffmpeg.exe") || !File.Exists("ffprobe.exe")))
+            if (_recentlyInstalledFfmpeg || !force && File.Exists("ffmpeg.exe") && File.Exists("ffprobe.exe"))
             {
                 return;
             }
@@ -48,6 +48,11 @@ namespace Sellorio.YouTubeMusicGrabber.Services
 
             foreach (var entry in entriesToExtract)
             {
+                if (File.Exists(entry.Name))
+                {
+                    File.Delete(entry.Name);
+                }
+
                 entry.ExtractToFile(entry.Name);
             }
         }
