@@ -31,6 +31,7 @@ services.AddYouTubeServices(rateLimitService, itemSourceServiceRegistry);
 services.AddSoundCloudServices(itemSourceServiceRegistry);
 services.AddScoped<IFallbackMetadataService, FallbackMetadataService>();
 services.AddScoped<ISyncService, SyncService>();
+services.AddScoped<IPrerequisiteService, PrerequisiteService>();
 
 var serviceProvider = services.BuildServiceProvider();
 
@@ -52,6 +53,11 @@ foreach (var error in parserResult.Errors)
 if (parserResult.Value is ICommand command)
 {
     using var scope = serviceProvider.CreateScope();
+
+    var prerequisiteService = scope.ServiceProvider.GetRequiredService<IPrerequisiteService>();
+    await prerequisiteService.EnsureYouTubeDlpAsync();
+    await prerequisiteService.EnsureFfmpegAsync();
+
     await command.ExecuteAsync(scope.ServiceProvider);
 }
 

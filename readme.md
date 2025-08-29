@@ -22,7 +22,7 @@ Currently, ytm-grabber doesn't have a published binary so to use it you'll need 
 
 ### Commands: grab-single
 
-Grabs a single track from YouTube.
+Grabs a single track from YouTube or SoundCloud.
 
 ```sh
 ytm-grabber.exe grab-single https://music.youtube.com/watch?v=ABC123ABC123 --output-filename abc123.mp3 --quality High
@@ -47,7 +47,7 @@ Options: Medium (196kbps), High (256kbps), VeryHigh (320kbps). Defaults to High.
 
 ### Commands: sync
 
-Grabs multiple tracks/playlists/albums from YouTube and keeps track of what's already
+Grabs multiple tracks/playlists/albums from YouTube (or SoundClound!) and keeps track of what's already
 been downloaded. Quality is always 256kbps.
 
 ```sh
@@ -62,7 +62,7 @@ ytm-grabber.exe sync \
 
 * _--add / -a_
 
-A YouTube Video/Music Track/Playlist/Album url to be grabbed. You can specify this parameter multiple times
+A YouTube Video/Music Track/Playlist/Album (or SoundClound track) url to be grabbed. You can specify this parameter multiple times
 to add multiple items with a single run.
 
 * _--add-albums_
@@ -101,6 +101,14 @@ ALBUM\NUMBER - TITLE.m3
 When adding a playlist using `--add`, skips the first `n` entries. This is useful when
 grabbing a large playlist and having to rerun the tool due to errors/interruptions. Rechecking
 which items have been downloaded still takes time.
+
+### Commands: update
+
+Redownloads the latest versions of `yt-dlp.exe`, `ffmpeg.exe` and `ffprobe.exe`.
+
+```sh
+ytm-grabber.exe update
+```
 
 ### Setting Up Cookies
 
@@ -141,8 +149,6 @@ You will still need to get a new cookies.txt every few hours of use unfortunatel
 
 These are things I'd like to add in future to this.
 
-* Automatic download and updating of ffmpeg and yt-dlp binaries at runtime
 * Detect cookies expiration and wait for user to get new cookies instead of erroring out
-* Give user the option to provide an alternative YouTube URL for downloading unavailable tracks
-* Soundcloud download options?
+* Give user the _option_ to provide an alternative URL for downloading unavailable tracks
 * Quality option for sync command?
